@@ -1,0 +1,35 @@
+[workspace]
+members = [
+    "crates/*"
+]
+
+[package]
+name = "weakauras-codec"
+version = "0.0.1"
+authors = ["Velithris"]
+license = "MIT"
+exclude = ["/.github/", "/crates/"]
+edition = "2024"
+rust-version = "1.87"
+
+[features]
+default = ["flate2-rust-backend"]
+legacy-strings-decoding = ["dep:weakauras-codec-lib-compress"]
+gpl-dependencies = ["legacy-strings-decoding"]
+flate2-rust-backend = ["flate2/rust_backend"]
+flate2-zlib-rs = ["flate2/zlib-rs"]
+flate2-zlib = ["flate2/zlib"]
+flate2-zlib-ng = ["flate2/zlib-ng"]
+flate2-zlib-ng-compat = ["flate2/zlib-ng-compat"]
+flate2-cloudflare-zlib = ["flate2/cloudflare_zlib"]
+lua-value-fnv = ["weakauras-codec-lua-value/fnv"]
+lua-value-indexmap = ["weakauras-codec-lua-value/indexmap"]
+serde = ["weakauras-codec-lua-value/serde"]
+
+[dependencies]
+weakauras-codec-base64 = { version = "0.0.1", path = "crates/base64" }
+weakauras-codec-lib-compress = { version = "0.0.1", path = "crates/lib_compress", optional = true }
+weakauras-codec-ace-serialize = { version = "0.0.1", path = "crates/ace_serialize" }
+weakauras-codec-lib-serialize = { version = "0.0.1", path = "crates/lib_serialize" }
+weakauras-codec-lua-value = { version = "0.0.1", path = "crates/lua_value" }
+flate2 = { version = "1.1.1", default-features = false }

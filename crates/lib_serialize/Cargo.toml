@@ -1,0 +1,17 @@
+[package]
+name = "weakauras-codec-lib-serialize"
+version = "0.0.1"
+authors = ["Velithris", "Ross Nichols"]
+license = "MIT"
+exclude = ["/fuzz/"]
+edition = "2024"
+rust-version = "1.87"
+
+[features]
+default = []
+lua-value-fnv = ["weakauras-codec-lua-value/fnv"]
+lua-value-indexmap = ["weakauras-codec-lua-value/indexmap"]
+serde = ["weakauras-codec-lua-value/serde"]
+
+[dependencies]
+weakauras-codec-lua-value = { version = "0.0.1", path = "../lua_value" }

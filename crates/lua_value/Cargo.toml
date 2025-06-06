@@ -1,0 +1,18 @@
+[package]
+name = "weakauras-codec-lua-value"
+version = "0.0.1"
+authors = ["Velithris"]
+license = "MIT"
+edition = "2024"
+rust-version = "1.87"
+
+[features]
+default = []
+fnv = ["dep:fnv"]
+indexmap = ["dep:indexmap"]
+serde = ["dep:serde"]
+
+[dependencies]
+fnv = { version = "1.0.7", optional = true }
+indexmap = { version = "2.9.0", optional = true }
+serde = { version = "1.0.219", optional = true }

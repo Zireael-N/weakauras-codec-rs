@@ -1,0 +1,8 @@
+[package]
+name = "weakauras-codec-lib-compress"
+version = "0.0.1"
+authors = ["Velithris", "jjsheets", "Galmok"]
+license = "GPL-2.0-only"
+exclude = ["/fuzz/"]
+edition = "2024"
+rust-version = "1.87"
