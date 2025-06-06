@@ -33,18 +33,8 @@ pub unsafe fn decode_into_unchecked(
         // SAFETY: As long as the caller upheld the safety contract,
         // we are at least 3 bytes away from the end of the output.
         unsafe {
-            if cfg!(target_endian = "little") {
-                core::ptr::copy((&word as *const u32).cast(), ptr, 3);
-                ptr = ptr.add(3);
-            } else {
-                let word = word.to_ne_bytes();
-                ptr.write(word[3]);
-                ptr = ptr.add(1);
-                ptr.write(word[2]);
-                ptr = ptr.add(1);
-                ptr.write(word[1]);
-                ptr = ptr.add(1);
-            }
+            core::ptr::copy((&word as *const u32).cast(), ptr, 3);
+            ptr = ptr.add(3);
         }
     }
 
@@ -63,14 +53,7 @@ pub unsafe fn decode_into_unchecked(
             // SAFETY: As long as the caller upheld the safety contract,
             // we are at least 2 bytes away from the end of the output.
             unsafe {
-                if cfg!(target_endian = "little") {
-                    core::ptr::copy((&word as *const u32).cast(), ptr, 2);
-                } else {
-                    let word = word.to_ne_bytes();
-                    ptr.write(word[3]);
-                    ptr = ptr.add(1);
-                    ptr.write(word[2]);
-                }
+                core::ptr::copy((&word as *const u32).cast(), ptr, 2);
             }
         }
         2 => {
@@ -85,11 +68,7 @@ pub unsafe fn decode_into_unchecked(
             // SAFETY: As long as the caller upheld the safety contract,
             // we are at least a byte away from the end of the output.
             unsafe {
-                ptr.write(if cfg!(target_endian = "little") {
-                    word as u8
-                } else {
-                    word.to_ne_bytes()[3]
-                });
+                core::ptr::copy((&word as *const u32).cast(), ptr, 1);
             }
         }
         _ => {}
