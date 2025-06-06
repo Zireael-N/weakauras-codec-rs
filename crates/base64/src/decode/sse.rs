@@ -18,7 +18,7 @@ use core::mem::MaybeUninit;
 pub unsafe fn decode_into_unchecked(
     input: &[u8],
     output: &mut [MaybeUninit<u8>],
-) -> Result<usize, &'static str> {
+) -> Result<usize, usize> {
     let mut len = input.len();
     let out_len = output.len();
     let mut written = 0;
@@ -74,7 +74,11 @@ pub unsafe fn decode_into_unchecked(
         let hi = _mm_shuffle_epi8(lut_hi, hi_nibbles);
 
         if _mm_testz_si128(lo, hi) == 0 {
-            return Err("Failed to decode base64");
+            // SAFETY: We were working on 16 bytes just now.
+            let last_chunk = unsafe { core::slice::from_raw_parts(ptr, 128 / 8) };
+            let invalid_byte_at = scalar::find_invalid_byte(last_chunk).unwrap();
+
+            return Err(input.len() - len + invalid_byte_at);
         }
 
         let roll = _mm_shuffle_epi8(lut_roll, hi_nibbles);
@@ -105,11 +109,14 @@ pub unsafe fn decode_into_unchecked(
 
     // SAFETY: Scalar version relies on the same safety contract.
     // Slices are guaranteed to be correct as long as the caller upheld it.
-    Ok(written
-        + unsafe {
-            scalar::decode_into_unchecked(
-                core::slice::from_raw_parts(ptr, len),
-                core::slice::from_raw_parts_mut(out_ptr, out_len - written),
-            )
-        }?)
+    let scalar_result = unsafe {
+        scalar::decode_into_unchecked(
+            core::slice::from_raw_parts(ptr, len),
+            core::slice::from_raw_parts_mut(out_ptr, out_len - written),
+        )
+    };
+    match scalar_result {
+        Ok(scalar_written) => Ok(written + scalar_written),
+        Err(invalid_byte_at) => Err(input.len() - len + invalid_byte_at),
+    }
 }

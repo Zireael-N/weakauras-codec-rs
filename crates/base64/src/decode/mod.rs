@@ -58,7 +58,8 @@ pub fn decode_to_vec(input: &[u8]) -> Result<Vec<u8>, &'static str> {
     // - decode_into_unchecked returns the amount of bytes written,
     //   thus it is safe to call set_len using its return value.
     unsafe {
-        let written = decode_into_unchecked(input, buffer.spare_capacity_mut())?;
+        let written = decode_into_unchecked(input, buffer.spare_capacity_mut())
+            .map_err(|_| "Failed to decode base64")?;
         buffer.set_len(written)
     }
 
@@ -72,7 +73,7 @@ pub fn decode_into(input: &[u8], output: &mut [MaybeUninit<u8>]) -> Result<usize
     }
 
     // SAFETY: output's len is enough to store decoded base64-input.
-    unsafe { decode_into_unchecked(input, output) }
+    unsafe { decode_into_unchecked(input, output).map_err(|_| "Failed to decode base64") }
 }
 
 /// SAFETY: the caller must ensure that `output`'s length is AT LEAST `input.len() * 3 / 4`
@@ -84,7 +85,7 @@ pub fn decode_into(input: &[u8], output: &mut [MaybeUninit<u8>]) -> Result<usize
 pub unsafe fn decode_into_unchecked(
     input: &[u8],
     output: &mut [MaybeUninit<u8>],
-) -> Result<usize, &'static str> {
+) -> Result<usize, usize> {
     unsafe { sse::decode_into_unchecked(input, output) }
 }
 
@@ -97,7 +98,7 @@ pub unsafe fn decode_into_unchecked(
 pub unsafe fn decode_into_unchecked(
     input: &[u8],
     output: &mut [MaybeUninit<u8>],
-) -> Result<usize, &'static str> {
+) -> Result<usize, usize> {
     unsafe { scalar::decode_into_unchecked(input, output) }
 }
 
@@ -161,5 +162,155 @@ mod tests {
         }
 
         assert_eq!(buf1, buf2);
+    }
+
+    #[test]
+    fn scalar_returns_index_of_invalid_byte() {
+        let test_cases = [
+            (
+                core::iter::once(b'=')
+                    .chain(base64_iter().take(7))
+                    .collect::<Vec<_>>(),
+                0usize,
+            ), // chunk #1
+            (
+                base64_iter()
+                    .take(1)
+                    .chain(core::iter::once(b'='))
+                    .chain(base64_iter().take(6))
+                    .collect::<Vec<_>>(),
+                1,
+            ), // chunk #1
+            (
+                base64_iter()
+                    .take(4)
+                    .chain(core::iter::once(b'='))
+                    .chain(base64_iter().take(3))
+                    .collect::<Vec<_>>(),
+                4,
+            ), // chunk #2
+            (
+                base64_iter()
+                    .take(9)
+                    .chain(core::iter::once(b'='))
+                    .collect::<Vec<_>>(),
+                9,
+            ), // remainder.len() == 2
+            (
+                base64_iter()
+                    .take(9)
+                    .chain(core::iter::once(b'='))
+                    .chain(base64_iter().take(1))
+                    .collect::<Vec<_>>(),
+                9,
+            ), // remainder.len() == 3
+        ];
+
+        for (data, invalid_byte_at) in test_cases {
+            let capacity = data.len() * 3 / 4;
+            let mut buf = Vec::with_capacity(capacity);
+
+            let result = unsafe { scalar::decode_into_unchecked(&data, buf.spare_capacity_mut()) };
+
+            assert_eq!(result, Err(invalid_byte_at));
+        }
+    }
+
+    #[test]
+    #[cfg(all(
+        any(target_arch = "x86", target_arch = "x86_64"),
+        target_feature = "ssse3"
+    ))]
+    fn sse_returns_index_of_invalid_byte() {
+        let test_cases = [
+            (
+                core::iter::once(b'=')
+                    .chain(base64_iter().take(39))
+                    .collect::<Vec<_>>(),
+                0usize,
+            ), // iteration #1
+            (
+                base64_iter()
+                    .take(1)
+                    .chain(core::iter::once(b'='))
+                    .chain(base64_iter().take(38))
+                    .collect::<Vec<_>>(),
+                1,
+            ), // iteration #1
+            (
+                base64_iter()
+                    .take(16)
+                    .chain(core::iter::once(b'='))
+                    .chain(base64_iter().take(23))
+                    .collect::<Vec<_>>(),
+                16,
+            ), // iteration #2
+            (
+                base64_iter()
+                    .take(35)
+                    .chain(core::iter::once(b'='))
+                    .chain(base64_iter().take(4))
+                    .collect::<Vec<_>>(),
+                35,
+            ), // scalar
+        ];
+
+        for (data, invalid_byte_at) in test_cases {
+            let capacity = data.len() * 3 / 4;
+            let mut buf = Vec::with_capacity(capacity);
+
+            let result = unsafe { sse::decode_into_unchecked(&data, buf.spare_capacity_mut()) };
+
+            assert_eq!(result, Err(invalid_byte_at));
+        }
+    }
+
+    #[test]
+    #[cfg(all(
+        any(target_arch = "x86", target_arch = "x86_64"),
+        target_feature = "avx2"
+    ))]
+    fn avx2_returns_index_of_invalid_byte() {
+        let test_cases = [
+            (
+                core::iter::once(b'=')
+                    .chain(base64_iter().take(79))
+                    .collect::<Vec<_>>(),
+                0usize,
+            ), // iteration #1
+            (
+                base64_iter()
+                    .take(1)
+                    .chain(core::iter::once(b'='))
+                    .chain(base64_iter().take(78))
+                    .collect::<Vec<_>>(),
+                1,
+            ), // iteration #1
+            (
+                base64_iter()
+                    .take(32)
+                    .chain(core::iter::once(b'='))
+                    .chain(base64_iter().take(47))
+                    .collect::<Vec<_>>(),
+                32,
+            ), // iteration #2
+            (
+                base64_iter()
+                    .take(70)
+                    .chain(core::iter::once(b'='))
+                    .chain(base64_iter().take(9))
+                    .collect::<Vec<_>>(),
+                70,
+            ), // scalar
+        ];
+
+        for (data, invalid_byte_at) in test_cases {
+            let capacity = data.len() * 3 / 4;
+            let mut buf = Vec::with_capacity(capacity);
+
+            let result = unsafe { avx2::decode_into_unchecked(&data, buf.spare_capacity_mut()) };
+
+            assert_eq!(result, Err(invalid_byte_at));
+        }
     }
 }
