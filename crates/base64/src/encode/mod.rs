@@ -11,6 +11,9 @@ pub mod scalar;
 pub use arch::encode_into_unchecked;
 use core::mem::MaybeUninit;
 
+#[cfg(feature = "alloc")]
+use alloc::{string::String, vec::Vec};
+
 const OVERFLOW_ERROR: &str = "Cannot calculate capacity without overflowing";
 
 #[inline]
@@ -28,6 +31,7 @@ pub fn calculate_encoded_len(input: &[u8]) -> Option<usize> {
     })
 }
 
+#[cfg(feature = "alloc")]
 pub fn encode_to_string_with_prefix(input: &[u8], prefix: &str) -> Result<String, &'static str> {
     let mut buffer = Vec::with_capacity(
         calculate_encoded_len(input)
@@ -53,6 +57,7 @@ pub fn encode_to_string_with_prefix(input: &[u8], prefix: &str) -> Result<String
     Ok(result)
 }
 
+#[cfg(feature = "alloc")]
 pub fn encode_to_string(input: &[u8]) -> Result<String, &'static str> {
     let mut buffer = Vec::with_capacity(calculate_encoded_len(input).ok_or(OVERFLOW_ERROR)?);
 

@@ -19,6 +19,8 @@ mod tests {
     use super::*;
     use crate::encode::{scalar, tests::*};
 
+    use alloc::{string::String, vec::Vec};
+
     #[test]
     #[cfg(target_feature = "ssse3")]
     fn scalar_and_ssse3_return_same_values() {

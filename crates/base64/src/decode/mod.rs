@@ -11,6 +11,9 @@ pub mod scalar;
 pub use arch::decode_into_unchecked;
 use core::mem::MaybeUninit;
 
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+
 #[inline]
 pub fn calculate_decoded_len(input: &[u8]) -> Option<usize> {
     // Equivalent to input.len() * 3 / 4 but does not overflow
@@ -29,6 +32,7 @@ pub fn calculate_decoded_len(input: &[u8]) -> Option<usize> {
     Some(result)
 }
 
+#[cfg(feature = "alloc")]
 pub fn decode_to_vec(input: &[u8]) -> Result<Vec<u8>, &'static str> {
     let mut buffer =
         Vec::with_capacity(calculate_decoded_len(input).ok_or("Invalid base64 length")?);

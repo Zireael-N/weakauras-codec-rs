@@ -6,6 +6,9 @@ use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, 
 use weakauras_codec_base64::encode::arch::x86_64;
 use weakauras_codec_base64::encode::{calculate_encoded_len, scalar};
 
+extern crate alloc;
+use alloc::vec::Vec;
+
 pub fn encoding_benchmark(c: &mut Criterion) {
     #[allow(non_upper_case_globals)]
     const KiB: usize = 1024;

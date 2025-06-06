@@ -19,6 +19,8 @@ mod tests {
     use super::*;
     use crate::decode::{scalar, tests::*};
 
+    use alloc::vec::Vec;
+
     #[test]
     #[cfg(target_feature = "sse4.1")]
     fn scalar_and_sse41_return_same_values() {

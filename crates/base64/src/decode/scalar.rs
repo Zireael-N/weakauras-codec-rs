@@ -98,6 +98,8 @@ mod tests {
     use super::*;
     use crate::decode::tests::*;
 
+    use alloc::vec::Vec;
+
     #[test]
     fn scalar_returns_index_of_invalid_byte() {
         let test_cases = [
