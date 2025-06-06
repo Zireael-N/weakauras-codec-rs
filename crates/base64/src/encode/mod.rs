@@ -1,38 +1,15 @@
 // Copyright 2020-2025 Velithris
 // SPDX-License-Identifier: MIT
 
-#[cfg(all(
-    any(feature = "avx2", test),
-    any(target_arch = "x86", target_arch = "x86_64"),
-    target_feature = "avx2"
-))]
-mod avx2;
-mod scalar;
-#[cfg(all(
-    any(target_arch = "x86", target_arch = "x86_64"),
-    target_feature = "ssse3"
-))]
-mod sse;
+// No guarantees about following semver there.
+// Both modules are public for benchmarks and fuzzing.
+#[doc(hidden)]
+pub mod arch;
+#[doc(hidden)]
+pub mod scalar;
 
+pub use arch::encode_into_unchecked;
 use core::mem::MaybeUninit;
-
-#[cfg(all(
-    feature = "expose_internals",
-    any(feature = "avx2", test),
-    any(target_arch = "x86", target_arch = "x86_64"),
-    target_feature = "avx2"
-))]
-pub use avx2::encode_into_unchecked as encode_into_unchecked_avx2;
-
-#[cfg(all(
-    feature = "expose_internals",
-    any(target_arch = "x86", target_arch = "x86_64"),
-    target_feature = "ssse3"
-))]
-pub use sse::encode_into_unchecked as encode_into_unchecked_sse;
-
-#[cfg(feature = "expose_internals")]
-pub use scalar::encode_into_unchecked as encode_into_unchecked_scalar;
 
 const OVERFLOW_ERROR: &str = "Cannot calculate capacity without overflowing";
 
@@ -103,77 +80,5 @@ pub fn encode_into(input: &[u8], output: &mut [MaybeUninit<u8>]) -> Result<usize
     Ok(unsafe { encode_into_unchecked(input, output) })
 }
 
-/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `(input.len() * 4 + 2) / 3`
-#[cfg(all(
-    any(target_arch = "x86", target_arch = "x86_64"),
-    target_feature = "ssse3"
-))]
-#[inline(always)]
-pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut [MaybeUninit<u8>]) -> usize {
-    unsafe { sse::encode_into_unchecked(input, output) }
-}
-
-/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `(input.len() * 4 + 2) / 3`
-#[cfg(any(
-    not(any(target_arch = "x86", target_arch = "x86_64")),
-    not(target_feature = "ssse3")
-))]
-#[inline(always)]
-pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut [MaybeUninit<u8>]) -> usize {
-    unsafe { scalar::encode_into_unchecked(input, output) }
-}
-
 #[cfg(test)]
-mod tests {
-    #[allow(unused_imports)]
-    use super::*;
-
-    #[allow(unused_macros)]
-    macro_rules! base64_encode {
-        ($input:expr, $output:ident, $module:ident) => {
-            let buffer = $output.as_mut_vec();
-            let len = $module::encode_into_unchecked($input, buffer.spare_capacity_mut());
-            buffer.set_len(len);
-        };
-    }
-
-    #[test]
-    #[cfg(all(
-        any(target_arch = "x86", target_arch = "x86_64"),
-        target_feature = "ssse3"
-    ))]
-    fn scalar_and_sse_return_same_values() {
-        let data: Vec<u8> = (0..=255).cycle().take(1024 * 30 + 3).collect();
-
-        let capacity = (data.len() * 4 + 2) / 3;
-        let mut buf1 = String::with_capacity(capacity);
-        let mut buf2 = String::with_capacity(capacity);
-
-        unsafe {
-            base64_encode!(&data, buf1, scalar);
-            base64_encode!(&data, buf2, sse);
-        }
-
-        assert_eq!(buf1, buf2);
-    }
-
-    #[test]
-    #[cfg(all(
-        any(target_arch = "x86", target_arch = "x86_64"),
-        target_feature = "avx2"
-    ))]
-    fn scalar_and_avx2_return_same_values() {
-        let data: Vec<u8> = (0..=255).cycle().take(1024 * 30 + 3).collect();
-
-        let capacity = (data.len() * 4 + 2) / 3;
-        let mut buf1 = String::with_capacity(capacity);
-        let mut buf2 = String::with_capacity(capacity);
-
-        unsafe {
-            base64_encode!(&data, buf1, scalar);
-            base64_encode!(&data, buf2, avx2);
-        }
-
-        assert_eq!(buf1, buf2);
-    }
-}
+pub(crate) mod tests;

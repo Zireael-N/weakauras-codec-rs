@@ -4,7 +4,7 @@
 // Copyright 2020-2025 Velithris
 // SPDX-License-Identifier: BSD-2-Clause
 
-use super::scalar;
+use crate::encode::scalar;
 #[cfg(target_arch = "x86")]
 use core::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
@@ -12,11 +12,9 @@ use core::arch::x86_64::*;
 use core::mem::MaybeUninit;
 
 /// SAFETY: the caller must ensure that `output`'s length is AT LEAST `(input.len() * 4 + 2) / 3`
-#[allow(unsafe_op_in_unsafe_fn)]
-#[cfg(all(any(feature = "avx2", test), target_feature = "avx2"))]
-#[inline]
+#[target_feature(enable = "avx2")]
 pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut [MaybeUninit<u8>]) -> usize {
-    // Refer to the SSE version for a detailed explanation.
+    // Refer to the SSSE3 version for a detailed explanation.
 
     let mut len = input.len();
     let out_len = output.len();

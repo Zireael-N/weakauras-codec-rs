@@ -92,3 +92,61 @@ pub(crate) fn find_invalid_byte(bytes: &[u8]) -> Option<usize> {
 fn is_valid_byte(byte: u8) -> bool {
     matches!(byte, b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'(' | b')')
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::decode::tests::*;
+
+    #[test]
+    fn scalar_returns_index_of_invalid_byte() {
+        let test_cases = [
+            (
+                core::iter::once(b'=')
+                    .chain(base64_iter().take(7))
+                    .collect::<Vec<_>>(),
+                0usize,
+            ), // chunk #1
+            (
+                base64_iter()
+                    .take(1)
+                    .chain(core::iter::once(b'='))
+                    .chain(base64_iter().take(6))
+                    .collect::<Vec<_>>(),
+                1,
+            ), // chunk #1
+            (
+                base64_iter()
+                    .take(4)
+                    .chain(core::iter::once(b'='))
+                    .chain(base64_iter().take(3))
+                    .collect::<Vec<_>>(),
+                4,
+            ), // chunk #2
+            (
+                base64_iter()
+                    .take(9)
+                    .chain(core::iter::once(b'='))
+                    .collect::<Vec<_>>(),
+                9,
+            ), // remainder.len() == 2
+            (
+                base64_iter()
+                    .take(9)
+                    .chain(core::iter::once(b'='))
+                    .chain(base64_iter().take(1))
+                    .collect::<Vec<_>>(),
+                9,
+            ), // remainder.len() == 3
+        ];
+
+        for (data, invalid_byte_at) in test_cases {
+            let capacity = data.len() * 3 / 4;
+            let mut buf = Vec::with_capacity(capacity);
+
+            let result = unsafe { decode_into_unchecked(&data, buf.spare_capacity_mut()) };
+
+            assert_eq!(result, Err(invalid_byte_at));
+        }
+    }
+}

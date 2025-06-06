@@ -7,19 +7,13 @@ exclude = ["/benches/", "/fuzz/"]
 edition = "2024"
 rust-version = "1.87"
 
-[features]
-avx2 = []
-expose_internals = []
-
 [dev-dependencies]
 criterion = { version = "0.6", features = ["html_reports"] }
 
 [[bench]]
 name = "decoding"
 harness = false
-required-features = ["expose_internals"]
 
 [[bench]]
 name = "encoding"
 harness = false
-required-features = ["expose_internals"]

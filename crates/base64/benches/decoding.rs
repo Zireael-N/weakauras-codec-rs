@@ -1,5 +1,10 @@
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use weakauras_codec_base64::*;
+#[cfg(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    any(target_feature = "avx2", target_feature = "sse4.1")
+))]
+use weakauras_codec_base64::decode::arch::x86_64;
+use weakauras_codec_base64::decode::{calculate_decoded_len, scalar};
 
 pub fn decoding_benchmark(c: &mut Criterion) {
     #[allow(non_upper_case_globals)]
@@ -17,13 +22,13 @@ pub fn decoding_benchmark(c: &mut Criterion) {
             .take(*size)
             .collect();
 
-        let capacity = decode::calculate_decoded_len(&data).unwrap();
+        let capacity = calculate_decoded_len(&data).unwrap();
 
         group.bench_with_input(BenchmarkId::new("scalar", size), size, |b, _| {
             b.iter_batched_ref(
                 || Vec::with_capacity(capacity),
                 |buffer| unsafe {
-                    decode_into_unchecked_scalar(&data, buffer.spare_capacity_mut())
+                    scalar::decode_into_unchecked(&data, buffer.spare_capacity_mut())
                 },
                 BatchSize::SmallInput,
             );
@@ -34,11 +39,11 @@ pub fn decoding_benchmark(c: &mut Criterion) {
             target_feature = "sse4.1"
         ))]
         {
-            group.bench_with_input(BenchmarkId::new("SSE", size), size, |b, _| {
+            group.bench_with_input(BenchmarkId::new("SSE4.1", size), size, |b, _| {
                 b.iter_batched_ref(
                     || Vec::with_capacity(capacity),
                     |buffer| unsafe {
-                        decode_into_unchecked_sse(&data, buffer.spare_capacity_mut())
+                        x86_64::sse41::decode_into_unchecked(&data, buffer.spare_capacity_mut())
                     },
                     BatchSize::SmallInput,
                 );
@@ -46,7 +51,6 @@ pub fn decoding_benchmark(c: &mut Criterion) {
         }
 
         #[cfg(all(
-            feature = "avx2",
             any(target_arch = "x86", target_arch = "x86_64"),
             target_feature = "avx2"
         ))]
@@ -55,7 +59,7 @@ pub fn decoding_benchmark(c: &mut Criterion) {
                 b.iter_batched_ref(
                     || Vec::with_capacity(capacity),
                     |buffer| unsafe {
-                        decode_into_unchecked_avx2(&data, buffer.spare_capacity_mut())
+                        x86_64::avx2::decode_into_unchecked(&data, buffer.spare_capacity_mut())
                     },
                     BatchSize::SmallInput,
                 );
