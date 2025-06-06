@@ -4,16 +4,18 @@
 // SPDX-License-Identifier: MIT
 
 use crate::byte_map::ENCODE_LUT;
+use core::mem::MaybeUninit;
 
-/// SAFETY: the caller must ensure that `output` can hold AT LEAST `(input.len() * 4 + 2) / 3` more elements
+/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `(input.len() * 4 + 2) / 3`
 #[inline]
-pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut String) {
+pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut [MaybeUninit<u8>]) -> usize {
     let mut chunks = input.chunks_exact(3);
 
-    let mut len = output.len();
-    let mut ptr = output[len..].as_mut_ptr();
+    let mut ptr = output.as_mut_ptr().cast::<u8>();
+    let mut written = 0;
+
     for chunk in chunks.by_ref() {
-        len += 4;
+        written += 4;
 
         let b0 = chunk[0];
         let b1 = chunk[1];
@@ -36,7 +38,7 @@ pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut String) {
     let remainder = chunks.remainder();
     match remainder.len() {
         2 => {
-            len += 3;
+            written += 3;
             let b0 = remainder[0];
             let b1 = remainder[1];
 
@@ -51,7 +53,7 @@ pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut String) {
             }
         }
         1 => {
-            len += 2;
+            written += 2;
             let b0 = remainder[0];
 
             // SAFETY: As long as the caller upheld the safety contract,
@@ -65,7 +67,5 @@ pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut String) {
         _ => {}
     }
 
-    unsafe {
-        output.as_mut_vec().set_len(len);
-    }
+    written
 }

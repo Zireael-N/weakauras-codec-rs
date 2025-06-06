@@ -11,12 +11,14 @@ pub fn encoding_benchmark(c: &mut Criterion) {
 
         let data: Vec<_> = (0u8..=255u8).cycle().take(*size).collect();
 
-        let capacity = calculate_encoded_len(&data).unwrap();
+        let capacity = encode::calculate_encoded_len(&data).unwrap();
 
         group.bench_with_input(BenchmarkId::new("scalar", size), size, |b, _| {
             b.iter_batched_ref(
-                || String::with_capacity(capacity),
-                |buffer| unsafe { encode_into_unchecked_scalar(&data, buffer) },
+                || Vec::with_capacity(capacity),
+                |buffer| unsafe {
+                    encode_into_unchecked_scalar(&data, buffer.spare_capacity_mut())
+                },
                 BatchSize::SmallInput,
             );
         });
@@ -28,8 +30,10 @@ pub fn encoding_benchmark(c: &mut Criterion) {
         {
             group.bench_with_input(BenchmarkId::new("SSE", size), size, |b, _| {
                 b.iter_batched_ref(
-                    || String::with_capacity(capacity),
-                    |buffer| unsafe { encode_into_unchecked_sse(&data, buffer) },
+                    || Vec::with_capacity(capacity),
+                    |buffer| unsafe {
+                        encode_into_unchecked_sse(&data, buffer.spare_capacity_mut())
+                    },
                     BatchSize::SmallInput,
                 );
             });
@@ -43,27 +47,16 @@ pub fn encoding_benchmark(c: &mut Criterion) {
         {
             group.bench_with_input(BenchmarkId::new("AVX2", size), size, |b, _| {
                 b.iter_batched_ref(
-                    || String::with_capacity(capacity),
-                    |buffer| unsafe { encode_into_unchecked_avx2(&data, buffer) },
+                    || Vec::with_capacity(capacity),
+                    |buffer| unsafe {
+                        encode_into_unchecked_avx2(&data, buffer.spare_capacity_mut())
+                    },
                     BatchSize::SmallInput,
                 );
             });
         }
     }
     group.finish();
-}
-
-fn calculate_encoded_len(data: &[u8]) -> Option<usize> {
-    let len = data.len();
-    let leftover = len % 3;
-
-    (len / 3).checked_mul(4).and_then(|len| {
-        if leftover > 0 {
-            len.checked_add(leftover + 1)
-        } else {
-            Some(len)
-        }
-    })
 }
 
 criterion_group!(benches, encoding_benchmark);

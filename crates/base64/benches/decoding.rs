@@ -17,12 +17,14 @@ pub fn decoding_benchmark(c: &mut Criterion) {
             .take(*size)
             .collect();
 
-        let capacity = data.len() * 3 / 4;
+        let capacity = decode::calculate_decoded_len(&data).unwrap();
 
         group.bench_with_input(BenchmarkId::new("scalar", size), size, |b, _| {
             b.iter_batched_ref(
                 || Vec::with_capacity(capacity),
-                |buffer| unsafe { decode_into_unchecked_scalar(&data, buffer) },
+                |buffer| unsafe {
+                    decode_into_unchecked_scalar(&data, buffer.spare_capacity_mut())
+                },
                 BatchSize::SmallInput,
             );
         });
@@ -35,7 +37,9 @@ pub fn decoding_benchmark(c: &mut Criterion) {
             group.bench_with_input(BenchmarkId::new("SSE", size), size, |b, _| {
                 b.iter_batched_ref(
                     || Vec::with_capacity(capacity),
-                    |buffer| unsafe { decode_into_unchecked_sse(&data, buffer) },
+                    |buffer| unsafe {
+                        decode_into_unchecked_sse(&data, buffer.spare_capacity_mut())
+                    },
                     BatchSize::SmallInput,
                 );
             });
@@ -50,7 +54,9 @@ pub fn decoding_benchmark(c: &mut Criterion) {
             group.bench_with_input(BenchmarkId::new("AVX2", size), size, |b, _| {
                 b.iter_batched_ref(
                     || Vec::with_capacity(capacity),
-                    |buffer| unsafe { decode_into_unchecked_avx2(&data, buffer) },
+                    |buffer| unsafe {
+                        decode_into_unchecked_avx2(&data, buffer.spare_capacity_mut())
+                    },
                     BatchSize::SmallInput,
                 );
             });

@@ -9,17 +9,19 @@ use super::scalar;
 use core::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::*;
+use core::mem::MaybeUninit;
 
-/// SAFETY: the caller must ensure that `output` can hold AT LEAST `(input.len() * 4 + 2) / 3` more elements
+/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `(input.len() * 4 + 2) / 3`
 #[allow(unsafe_op_in_unsafe_fn)]
 #[cfg(target_feature = "ssse3")]
 #[inline]
-pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut String) {
+pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut [MaybeUninit<u8>]) -> usize {
     let mut len = input.len();
-    let mut out_len = output.len();
+    let out_len = output.len();
+    let mut written = 0;
 
     let mut ptr = input.as_ptr();
-    let mut out_ptr = output[out_len..].as_mut_ptr();
+    let mut out_ptr = output.as_mut_ptr();
 
     let shuf = _mm_set_epi8(10, 9, 11, 10, 7, 6, 8, 7, 4, 3, 5, 4, 1, 0, 2, 1);
 
@@ -74,15 +76,20 @@ pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut String) {
         unsafe {
             _mm_storeu_si128(out_ptr.cast(), result);
             out_ptr = out_ptr.add(16);
-            out_len += 16;
+            written += 16;
 
             ptr = ptr.add(12);
             len -= 12;
         }
     }
-    unsafe { output.as_mut_vec().set_len(out_len) };
 
     // SAFETY: Scalar version relies on the same safety contract.
-    // The slice is guaranteed to be correct as long as the caller upheld it.
-    unsafe { scalar::encode_into_unchecked(core::slice::from_raw_parts(ptr, len), output) }
+    // Slices are guaranteed to be correct as long as the caller upheld it.
+    written
+        + unsafe {
+            scalar::encode_into_unchecked(
+                core::slice::from_raw_parts(ptr, len),
+                core::slice::from_raw_parts_mut(out_ptr, out_len - written),
+            )
+        }
 }

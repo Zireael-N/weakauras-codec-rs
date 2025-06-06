@@ -4,22 +4,23 @@
 // SPDX-License-Identifier: MIT
 
 use crate::byte_map::{BAD_SYMBOL, DECODE_LUT0, DECODE_LUT1, DECODE_LUT2, DECODE_LUT3};
+use core::mem::MaybeUninit;
 
 const INVALID_B64: &str = "Failed to decode base64";
 
-/// SAFETY: the caller must ensure that `output` can hold AT LEAST `input.len() * 3 / 4` more elements
+/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `input.len() * 3 / 4`
 #[inline]
 pub unsafe fn decode_into_unchecked(
     input: &[u8],
-    output: &mut Vec<u8>,
-) -> Result<(), &'static str> {
+    output: &mut [MaybeUninit<u8>],
+) -> Result<usize, &'static str> {
     let mut chunks = input.chunks_exact(4);
 
-    let mut len = output.len();
-    let mut ptr = output[len..].as_mut_ptr();
+    let mut ptr = output.as_mut_ptr().cast::<u8>();
+    let mut written = 0;
 
     for chunk in chunks.by_ref() {
-        len += 3;
+        written += 3;
 
         let word = DECODE_LUT0[chunk[0]]
             | DECODE_LUT1[chunk[1]]
@@ -41,7 +42,7 @@ pub unsafe fn decode_into_unchecked(
     let remainder = chunks.remainder();
     match remainder.len() {
         3 => {
-            len += 2;
+            written += 2;
 
             let word =
                 DECODE_LUT0[remainder[0]] | DECODE_LUT1[remainder[1]] | DECODE_LUT2[remainder[2]];
@@ -57,7 +58,7 @@ pub unsafe fn decode_into_unchecked(
             }
         }
         2 => {
-            len += 1;
+            written += 1;
 
             let word = DECODE_LUT0[remainder[0]] | DECODE_LUT1[remainder[1]];
 
@@ -74,9 +75,5 @@ pub unsafe fn decode_into_unchecked(
         _ => {}
     }
 
-    unsafe {
-        output.set_len(len);
-    }
-
-    Ok(())
+    Ok(written)
 }

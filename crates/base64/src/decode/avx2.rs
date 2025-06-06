@@ -9,24 +9,26 @@ use super::scalar;
 use core::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::*;
+use core::mem::MaybeUninit;
 
-/// SAFETY: the caller must ensure that `output` can hold AT LEAST `input.len() * 3 / 4` more elements
+/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `input.len() * 3 / 4`
 #[allow(unsafe_op_in_unsafe_fn)]
 #[cfg(all(any(feature = "avx2", test), target_feature = "avx2"))]
 #[inline]
 pub unsafe fn decode_into_unchecked(
     input: &[u8],
-    output: &mut Vec<u8>,
-) -> Result<(), &'static str> {
+    output: &mut [MaybeUninit<u8>],
+) -> Result<usize, &'static str> {
     // Refer to the SSE version for a detailed explanation,
     // the only difference is an extra call to _mm256_permutevar8x32_epi32
     // to merge two lanes in the end.
 
     let mut len = input.len();
-    let mut out_len = output.len();
+    let out_len = output.len();
+    let mut written = 0;
 
     let mut ptr = input.as_ptr();
-    let mut out_ptr = output[out_len..].as_mut_ptr();
+    let mut out_ptr = output.as_mut_ptr();
 
     let lut_hi = _mm256_setr_epi8(
         0x10, 0x10, 0x01, 0x02, 0x04, 0x08, 0x04, 0x08, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
@@ -83,15 +85,20 @@ pub unsafe fn decode_into_unchecked(
         unsafe {
             _mm256_storeu_si256(out_ptr.cast(), shuffled);
             out_ptr = out_ptr.add(24);
-            out_len += 24;
+            written += 24;
 
             ptr = ptr.add(32);
             len -= 32;
         }
     }
-    unsafe { output.set_len(out_len) };
 
     // SAFETY: Scalar version relies on the same safety contract.
-    // The slice is guaranteed to be correct as long as the caller upheld it.
-    unsafe { scalar::decode_into_unchecked(core::slice::from_raw_parts(ptr, len), output) }
+    // Slices are guaranteed to be correct as long as the caller upheld it.
+    Ok(written
+        + unsafe {
+            scalar::decode_into_unchecked(
+                core::slice::from_raw_parts(ptr, len),
+                core::slice::from_raw_parts_mut(out_ptr, out_len - written),
+            )
+        }?)
 }

@@ -11,6 +11,8 @@ mod scalar;
 ))]
 mod sse;
 
+use core::mem::MaybeUninit;
+
 #[cfg(all(
     feature = "expose_internals",
     any(feature = "avx2", test),
@@ -30,7 +32,7 @@ pub use sse::decode_into_unchecked as decode_into_unchecked_sse;
 pub use scalar::decode_into_unchecked as decode_into_unchecked_scalar;
 
 #[inline]
-fn calculate_decoded_len(input: &[u8]) -> Option<usize> {
+pub fn calculate_decoded_len(input: &[u8]) -> Option<usize> {
     // Equivalent to input.len() * 3 / 4 but does not overflow
     let len = input.len();
 
@@ -50,29 +52,52 @@ fn calculate_decoded_len(input: &[u8]) -> Option<usize> {
 pub fn decode_to_vec(input: &[u8]) -> Result<Vec<u8>, &'static str> {
     let mut buffer =
         Vec::with_capacity(calculate_decoded_len(input).ok_or("Invalid base64 length")?);
+
+    // SAFETY:
+    // - buffer's capacity is enough for storing decoded base64-input;
+    // - decode_into_unchecked returns the amount of bytes written,
+    //   thus it is safe to call set_len using its return value.
     unsafe {
-        decode_into_unchecked(input, &mut buffer)?;
+        let written = decode_into_unchecked(input, buffer.spare_capacity_mut())?;
+        buffer.set_len(written)
     }
+
     Ok(buffer)
 }
 
-/// SAFETY: the caller must ensure that `output` can hold AT LEAST `input.len() * 3 / 4` more elements
+pub fn decode_into(input: &[u8], output: &mut [MaybeUninit<u8>]) -> Result<usize, &'static str> {
+    let required_capacity = calculate_decoded_len(input).ok_or("Invalid base64 length")?;
+    if output.len() < required_capacity {
+        return Err("Output slice is too small");
+    }
+
+    // SAFETY: output's len is enough to store decoded base64-input.
+    unsafe { decode_into_unchecked(input, output) }
+}
+
+/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `input.len() * 3 / 4`
 #[cfg(all(
     any(target_arch = "x86", target_arch = "x86_64"),
     target_feature = "sse4.1"
 ))]
 #[inline(always)]
-unsafe fn decode_into_unchecked(input: &[u8], output: &mut Vec<u8>) -> Result<(), &'static str> {
+pub unsafe fn decode_into_unchecked(
+    input: &[u8],
+    output: &mut [MaybeUninit<u8>],
+) -> Result<usize, &'static str> {
     unsafe { sse::decode_into_unchecked(input, output) }
 }
 
-/// SAFETY: the caller must ensure that `output` can hold AT LEAST `input.len() * 3 / 4` more elements
+/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `input.len() * 3 / 4`
 #[cfg(any(
     not(any(target_arch = "x86", target_arch = "x86_64")),
     not(target_feature = "sse4.1")
 ))]
 #[inline(always)]
-unsafe fn decode_into_unchecked(input: &[u8], output: &mut Vec<u8>) -> Result<(), &'static str> {
+pub unsafe fn decode_into_unchecked(
+    input: &[u8],
+    output: &mut [MaybeUninit<u8>],
+) -> Result<usize, &'static str> {
     unsafe { scalar::decode_into_unchecked(input, output) }
 }
 
@@ -103,8 +128,12 @@ mod tests {
         let mut buf2 = Vec::with_capacity(capacity);
 
         unsafe {
-            scalar::decode_into_unchecked(&data, &mut buf1).unwrap();
-            sse::decode_into_unchecked(&data, &mut buf2).unwrap();
+            let scalar_len =
+                scalar::decode_into_unchecked(&data, buf1.spare_capacity_mut()).unwrap();
+            buf1.set_len(scalar_len);
+
+            let sse_len = sse::decode_into_unchecked(&data, buf2.spare_capacity_mut()).unwrap();
+            buf2.set_len(sse_len);
         }
 
         assert_eq!(buf1, buf2);
@@ -123,8 +152,12 @@ mod tests {
         let mut buf2 = Vec::with_capacity(capacity);
 
         unsafe {
-            scalar::decode_into_unchecked(&data, &mut buf1).unwrap();
-            avx2::decode_into_unchecked(&data, &mut buf2).unwrap();
+            let scalar_len =
+                scalar::decode_into_unchecked(&data, buf1.spare_capacity_mut()).unwrap();
+            buf1.set_len(scalar_len);
+
+            let avx2_len = avx2::decode_into_unchecked(&data, buf2.spare_capacity_mut()).unwrap();
+            buf2.set_len(avx2_len);
         }
 
         assert_eq!(buf1, buf2);

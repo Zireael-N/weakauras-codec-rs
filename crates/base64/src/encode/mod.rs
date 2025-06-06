@@ -14,6 +14,8 @@ mod scalar;
 ))]
 mod sse;
 
+use core::mem::MaybeUninit;
+
 #[cfg(all(
     feature = "expose_internals",
     any(feature = "avx2", test),
@@ -35,7 +37,7 @@ pub use scalar::encode_into_unchecked as encode_into_unchecked_scalar;
 const OVERFLOW_ERROR: &str = "Cannot calculate capacity without overflowing";
 
 #[inline]
-fn calculate_encoded_len(input: &[u8]) -> Option<usize> {
+pub fn calculate_encoded_len(input: &[u8]) -> Option<usize> {
     // Equivalent to (input.len() * 4 + 2) / 3 but avoids an early overflow
     let len = input.len();
     let leftover = len % 3;
@@ -50,58 +52,90 @@ fn calculate_encoded_len(input: &[u8]) -> Option<usize> {
 }
 
 pub fn encode_to_string_with_prefix(input: &[u8], prefix: &str) -> Result<String, &'static str> {
-    let mut result = String::with_capacity(
+    let mut buffer = Vec::with_capacity(
         calculate_encoded_len(input)
             .and_then(|len| len.checked_add(prefix.len()))
             .ok_or(OVERFLOW_ERROR)?,
     );
-    result.push_str(prefix);
+    buffer.extend_from_slice(prefix.as_bytes());
 
+    // SAFETY:
+    // - buffer's capacity is enough for storing both the prefix and base64-encoded input;
+    // - encode_into_unchecked returns the amount of bytes written,
+    //   thus it is safe to call set_len adding its return value
+    //   and the prefix's length (which buffer.len() is currently equal to).
     unsafe {
-        encode_into_unchecked(input, &mut result);
+        let written = encode_into_unchecked(input, buffer.spare_capacity_mut());
+        buffer.set_len(buffer.len() + written);
     }
 
+    // SAFETY:
+    // - prefix is guaranteed to be valid UTF-8, since it is &str;
+    // - encode_into_unchecked writes exclusively ASCII bytes.
+    let result = unsafe { String::from_utf8_unchecked(buffer) };
     Ok(result)
 }
 
 pub fn encode_to_string(input: &[u8]) -> Result<String, &'static str> {
-    let mut result = String::with_capacity(calculate_encoded_len(input).ok_or(OVERFLOW_ERROR)?);
+    let mut buffer = Vec::with_capacity(calculate_encoded_len(input).ok_or(OVERFLOW_ERROR)?);
 
+    // SAFETY:
+    // - buffer's capacity is enough for storing base64-encoded input;
+    // - encode_into_unchecked returns the amount of bytes written,
+    //   thus it is safe to call set_len using its return value.
     unsafe {
-        encode_into_unchecked(input, &mut result);
+        let written = encode_into_unchecked(input, buffer.spare_capacity_mut());
+        buffer.set_len(written);
     }
 
+    // SAFETY: encode_into_unchecked writes exclusively ASCII bytes.
+    let result = unsafe { String::from_utf8_unchecked(buffer) };
     Ok(result)
 }
 
-/// SAFETY: the caller must ensure that `output` can hold AT LEAST `(input.len() * 4 + 2) / 3` more elements
+pub fn encode_into(input: &[u8], output: &mut [MaybeUninit<u8>]) -> Result<usize, &'static str> {
+    let required_capacity = calculate_encoded_len(input).ok_or(OVERFLOW_ERROR)?;
+    if output.len() < required_capacity {
+        return Err("Output slice is too small");
+    }
+
+    // SAFETY: output's len is enough to store base64-encoded input.
+    Ok(unsafe { encode_into_unchecked(input, output) })
+}
+
+/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `(input.len() * 4 + 2) / 3`
 #[cfg(all(
     any(target_arch = "x86", target_arch = "x86_64"),
     target_feature = "ssse3"
 ))]
 #[inline(always)]
-unsafe fn encode_into_unchecked(input: &[u8], output: &mut String) {
-    unsafe {
-        sse::encode_into_unchecked(input, output);
-    }
+pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut [MaybeUninit<u8>]) -> usize {
+    unsafe { sse::encode_into_unchecked(input, output) }
 }
 
-/// SAFETY: the caller must ensure that `output` can hold AT LEAST `(input.len() * 4 + 2) / 3` more elements
+/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `(input.len() * 4 + 2) / 3`
 #[cfg(any(
     not(any(target_arch = "x86", target_arch = "x86_64")),
     not(target_feature = "ssse3")
 ))]
 #[inline(always)]
-unsafe fn encode_into_unchecked(input: &[u8], output: &mut String) {
-    unsafe {
-        scalar::encode_into_unchecked(input, output);
-    }
+pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut [MaybeUninit<u8>]) -> usize {
+    unsafe { scalar::encode_into_unchecked(input, output) }
 }
 
 #[cfg(test)]
 mod tests {
     #[allow(unused_imports)]
     use super::*;
+
+    #[allow(unused_macros)]
+    macro_rules! base64_encode {
+        ($input:expr, $output:ident, $module:ident) => {
+            let buffer = $output.as_mut_vec();
+            let len = $module::encode_into_unchecked($input, buffer.spare_capacity_mut());
+            buffer.set_len(len);
+        };
+    }
 
     #[test]
     #[cfg(all(
@@ -116,8 +150,8 @@ mod tests {
         let mut buf2 = String::with_capacity(capacity);
 
         unsafe {
-            scalar::encode_into_unchecked(&data, &mut buf1);
-            sse::encode_into_unchecked(&data, &mut buf2);
+            base64_encode!(&data, buf1, scalar);
+            base64_encode!(&data, buf2, sse);
         }
 
         assert_eq!(buf1, buf2);
@@ -136,8 +170,8 @@ mod tests {
         let mut buf2 = String::with_capacity(capacity);
 
         unsafe {
-            scalar::encode_into_unchecked(&data, &mut buf1);
-            avx2::encode_into_unchecked(&data, &mut buf2);
+            base64_encode!(&data, buf1, scalar);
+            base64_encode!(&data, buf2, avx2);
         }
 
         assert_eq!(buf1, buf2);
