@@ -250,21 +250,28 @@ impl<'s> Deserializer<'s> {
                     .reader
                     .read_u8()
                     .ok_or(DeserializationError::UnexpectedEof)?
-                    - 1;
+                    .checked_sub(1)
+                    .ok_or(DeserializationError::InvalidStringReference)?;
                 match self.string_refs.get(index as usize) {
                     None => Err(DeserializationError::InvalidStringReference),
                     Some(s) => Ok(LuaValue::String(s.clone())),
                 }
             }
             TypeTag::StrRef16 => {
-                let index = self.deserialize_int(2)? - 1;
+                let index = self
+                    .deserialize_int(2)?
+                    .checked_sub(1)
+                    .ok_or(DeserializationError::InvalidStringReference)?;
                 match self.string_refs.get(index as usize) {
                     None => Err(DeserializationError::InvalidStringReference),
                     Some(s) => Ok(LuaValue::String(s.clone())),
                 }
             }
             TypeTag::StrRef24 => {
-                let index = self.deserialize_int(3)? - 1;
+                let index = self
+                    .deserialize_int(3)?
+                    .checked_sub(1)
+                    .ok_or(DeserializationError::InvalidStringReference)?;
                 match self.string_refs.get(index as usize) {
                     None => Err(DeserializationError::InvalidStringReference),
                     Some(s) => Ok(LuaValue::String(s.clone())),
@@ -276,21 +283,28 @@ impl<'s> Deserializer<'s> {
                     .reader
                     .read_u8()
                     .ok_or(DeserializationError::UnexpectedEof)?
-                    - 1;
+                    .checked_sub(1)
+                    .ok_or(DeserializationError::InvalidMapReference)?;
                 match self.table_refs.get(index as usize) {
                     None => Err(DeserializationError::InvalidMapReference),
                     Some(v) => Ok(v.clone()),
                 }
             }
             TypeTag::MapRef16 => {
-                let index = self.deserialize_int(2)? - 1;
+                let index = self
+                    .deserialize_int(2)?
+                    .checked_sub(1)
+                    .ok_or(DeserializationError::InvalidMapReference)?;
                 match self.table_refs.get(index as usize) {
                     None => Err(DeserializationError::InvalidMapReference),
                     Some(v) => Ok(v.clone()),
                 }
             }
             TypeTag::MapRef24 => {
-                let index = self.deserialize_int(3)? - 1;
+                let index = self
+                    .deserialize_int(3)?
+                    .checked_sub(1)
+                    .ok_or(DeserializationError::InvalidMapReference)?;
                 match self.table_refs.get(index as usize) {
                     None => Err(DeserializationError::InvalidMapReference),
                     Some(v) => Ok(v.clone()),
