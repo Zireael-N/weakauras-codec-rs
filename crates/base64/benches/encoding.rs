@@ -1,6 +1,8 @@
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
 use weakauras_codec_base64::encode::arch::aarch64;
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+use weakauras_codec_base64::encode::arch::wasm32;
 #[cfg(all(
     any(target_arch = "x86", target_arch = "x86_64"),
     any(target_feature = "avx2", target_feature = "ssse3")
@@ -72,6 +74,19 @@ pub fn encoding_benchmark(c: &mut Criterion) {
                     || Vec::with_capacity(capacity),
                     |buffer| unsafe {
                         aarch64::neon::encode_into_unchecked(&data, buffer.spare_capacity_mut())
+                    },
+                    BatchSize::SmallInput,
+                );
+            });
+        }
+
+        #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+        {
+            group.bench_with_input(BenchmarkId::new("wasm32-simd128", size), size, |b, _| {
+                b.iter_batched_ref(
+                    || Vec::with_capacity(capacity),
+                    |buffer| unsafe {
+                        wasm32::simd128::encode_into_unchecked(&data, buffer.spare_capacity_mut())
                     },
                     BatchSize::SmallInput,
                 );
