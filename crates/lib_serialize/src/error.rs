@@ -9,6 +9,7 @@ use weakauras_codec_lua_value::error::TryFromLuaValueError;
 
 /// Errors than can occur while deserializing.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DeserializationError {
     /// The input does not start with a valid prefix.
     InvalidPrefix,
@@ -22,7 +23,8 @@ pub enum DeserializationError {
     InvalidMapReference,
     /// Failed to parse a floating-point number.
     InvalidFloatNumber,
-    /// A floating-point number stored as a mantissa-exponent pair is missing its exponent.
+    /// According to the input, a map has a key that is either a null or a NaN.
+    /// That is not valid in Lua.
     InvalidMapKeyType,
     /// The input ended unexpectedly.
     UnexpectedEof,
@@ -51,7 +53,7 @@ impl fmt::Display for DeserializationError {
             Self::InvalidStringReference => write!(f, "Invalid string reference"),
             Self::InvalidMapReference => write!(f, "Invalid map reference"),
             Self::InvalidFloatNumber => write!(f, "Failed to parse a floating-point number"),
-            Self::InvalidMapKeyType => write!(f, "Usage of null as a map key"),
+            Self::InvalidMapKeyType => write!(f, "Invalid map key type"),
             Self::UnexpectedEof => write!(f, "Unexpected EOF"),
             Self::RecursionLimitExceeded => write!(f, "Recursion limit exceeded"),
         }

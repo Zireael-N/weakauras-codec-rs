@@ -1,8 +1,71 @@
 // Copyright 2020-2025 Velithris
 // SPDX-License-Identifier: MIT
 
-#![forbid(unsafe_code)]
+//! This library provides routines for decoding and encoding [WeakAuras]-compatible strings.
+//!
+//! # Decoding example
+//!
+//! This is how you can use the library to decode WeakAuras-compatible strings.
+//!
+//! ```
+//! use weakauras_codec::{DecodeError, decode};
+//!
+//! fn main() -> Result<(), DecodeError> {
+//!     let expected_value = "Hello, world!".into();
+//!
+//!     assert_eq!(
+//!         decode(b"!lodJlypsnNCYxN6sO88lkNuumU4aaa", None)?.unwrap(),
+//!         expected_value
+//!     );
+//!     assert_eq!(
+//!         decode(b"!WA:2!JXl5rQ5Kt(6Oq55xuoPOiaa", Some(1024))?.unwrap(),
+//!         expected_value
+//!     );
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! # Encoding example
+//!
+//! This is how you can use the library to encode data as a WeakAuras-compatible string.
+//!
+//! ```
+//! use std::error::Error;
+//! use weakauras_codec::{OutputStringVersion, decode, encode};
+//!
+//! fn main() -> Result<(), Box<dyn Error>> {
+//!     let value = "Hello, world!".into();
+//!     let encoded_value_1 = encode(&value, OutputStringVersion::Deflate)?;
+//!     let encoded_value_2 = encode(&value, OutputStringVersion::BinarySerialization)?;
+//!
+//!     assert_eq!(decode(encoded_value_1.as_bytes(), None)?.unwrap(), value);
+//!     assert_eq!(decode(encoded_value_2.as_bytes(), None)?.unwrap(), value);
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! # Crate features
+//!
+//! * **legacy-strings-decoding** - Enable decoding of legacy WeakAuras-compatible strings. Uses a GPL-licensed library. **Disabled** by default.
+//! * **gpl-dependencies** - Enable GPL-licensed dependencies. Currently, it enables the `legacy-strings-decoding` feature. **Disabled** by default.
+//! * **flate2-rust-backend** - Enable the `rust-backend` feature in `flate2`. **Enabled** by default.
+//! * **flate2-zlib-rs** - Enable the `zlib-rs` feature in `flate2`. **Disabled** by default.
+//! * **flate2-zlib** - Enable the `zlib` feature in `flate2`. **Disabled** by default.
+//! * **flate2-zlib-ng** - Enable the `zlib-ng` feature in `flate2`. **Disabled** by default.
+//! * **flate2-zlib-ng-compat** - Enable the `zlib-ng-compat` feature in `flate2`. **Disabled** by default.
+//! * **flate2-cloudflare-zlib** - Enable the `cloudflare_zlib` feature in `flate2`. **Disabled** by default.
+//! * **lua-value-fnv** - Use `fnv` instead of `BTreeMap` as the implementation of [`LuaValue::Map`]. **Disabled** by default.
+//! * **lua-value-indexmap** - Use `indexmap` instead of `BTreeMap` as the implementation of [`LuaValue::Map`]. **Disabled** by default.
+//! * **serde** - Allow serializing and deserializing [`LuaValue`] using `serde`. **Disabled** by default.
+//!
+//! [WeakAuras]: https://weakauras.wtf
 
+#![forbid(unsafe_code)]
+#![deny(missing_docs)]
+
+/// Error types.
 pub mod error;
 pub use error::*;
 
@@ -21,6 +84,7 @@ enum StringVersion {
     BinarySerialization, // !WA:2! + base64
 }
 
+/// A version of the string to be produced by [encode].
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum OutputStringVersion {
     /// `!` + base64-string
@@ -29,8 +93,32 @@ pub enum OutputStringVersion {
     BinarySerialization,
 }
 
-/// Takes a string encoded by WeakAuras and returns
-/// a [LuaValue].
+/// Decodes a WeakAuras-compatible string and returns a [LuaValue].
+///
+/// The second argument, `max_size`, is used as a counter-DoS measure. Since the data
+/// is compressed, it's possible to construct a payload that would consume a lot of memory
+/// after decompression. `None` is equivalent to 16 MiB.
+///
+/// # Example
+///
+/// ```
+/// use weakauras_codec::{DecodeError, decode};
+///
+/// fn main() -> Result<(), DecodeError> {
+///     let expected_value = "Hello, world!".into();
+///
+///     assert_eq!(
+///         decode(b"!lodJlypsnNCYxN6sO88lkNuumU4aaa", None)?.unwrap(),
+///         expected_value
+///     );
+///     assert_eq!(
+///         decode(b"!WA:2!JXl5rQ5Kt(6Oq55xuoPOiaa", Some(1024))?.unwrap(),
+///         expected_value
+///     );
+///
+///     Ok(())
+/// }
+/// ```
 pub fn decode(data: &[u8], max_size: Option<usize>) -> Result<Option<LuaValue>, DecodeError> {
     let (base64_data, version) = match data {
         [b'!', b'W', b'A', b':', b'2', b'!', rest @ ..] => {
@@ -95,8 +183,25 @@ pub fn decode(data: &[u8], max_size: Option<usize>) -> Result<Option<LuaValue>, 
     })
 }
 
-/// Takes a [LuaValue] and returns
-/// a string that can be decoded by WeakAuras.
+/// Encodes a [LuaValue] into a WeakAuras-compatible string.
+///
+/// # Example
+///
+/// ```
+/// use std::error::Error;
+/// use weakauras_codec::{OutputStringVersion, decode, encode};
+///
+/// fn main() -> Result<(), Box<dyn Error>> {
+///     let value = "Hello, world!".into();
+///     let encoded_value_1 = encode(&value, OutputStringVersion::Deflate)?;
+///     let encoded_value_2 = encode(&value, OutputStringVersion::BinarySerialization)?;
+///
+///     assert_eq!(decode(encoded_value_1.as_bytes(), None)?.unwrap(), value);
+///     assert_eq!(decode(encoded_value_2.as_bytes(), None)?.unwrap(), value);
+///
+///     Ok(())
+/// }
+/// ```
 pub fn encode(
     value: &LuaValue,
     string_version: OutputStringVersion,

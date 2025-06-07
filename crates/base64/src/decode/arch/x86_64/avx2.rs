@@ -11,7 +11,7 @@ use core::arch::x86::*;
 use core::arch::x86_64::*;
 use core::mem::MaybeUninit;
 
-/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `input.len() * 3 / 4`
+// Refer to the reexport for documentation, crate::decode::decode_into_unchecked.
 #[target_feature(enable = "avx2")]
 pub unsafe fn decode_into_unchecked(
     input: &[u8],

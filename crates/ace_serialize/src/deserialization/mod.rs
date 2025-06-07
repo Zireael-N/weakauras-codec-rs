@@ -7,12 +7,30 @@ use crate::{error::DeserializationError, macros::check_recursion};
 use reader::StrReader;
 use weakauras_codec_lua_value::{LuaMapKey, LuaValue};
 
+/// A structure for deserializing strings produced by AceSerialize.
+///
+/// # Example
+///
+/// ```
+/// use weakauras_codec_ace_serialize::{deserialization::Deserializer, error::DeserializationError};
+///
+/// fn main() -> Result<(), DeserializationError> {
+///     assert_eq!(
+///         Deserializer::from_str("^1^SHello,~`world!^^")
+///             .deserialize_first()?
+///             .unwrap(),
+///         "Hello, world!".into()
+///     );
+///     Ok(())
+/// }
+/// ```
 pub struct Deserializer<'s> {
     remaining_depth: usize,
     reader: StrReader<'s>,
 }
 
 impl<'s> Deserializer<'s> {
+    /// Create a deserializer from a string slice.
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(slice: &'s str) -> Self {
         Self {

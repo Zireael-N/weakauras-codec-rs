@@ -12,7 +12,7 @@ use core::mem::MaybeUninit;
 #[cfg(target_feature = "avx2")]
 pub use avx2::encode_into_unchecked;
 
-/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `(input.len() * 4 + 2) / 3`
+// Refer to the reexport for documentation, crate::encode::encode_into_unchecked.
 #[cfg(all(target_feature = "ssse3", not(target_feature = "avx2")))]
 #[inline(always)]
 pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut [MaybeUninit<u8>]) -> usize {
@@ -27,7 +27,7 @@ pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut [MaybeUninit<u8>]
     )
 }
 
-/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `(input.len() * 4 + 2) / 3`
+// Refer to the reexport for documentation, crate::encode::encode_into_unchecked.
 #[cfg(not(any(target_feature = "ssse3", target_feature = "avx2")))]
 #[inline(always)]
 pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut [MaybeUninit<u8>]) -> usize {

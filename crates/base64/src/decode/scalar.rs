@@ -6,7 +6,7 @@
 use crate::byte_map::{BAD_SYMBOL, DECODE_LUT0, DECODE_LUT1, DECODE_LUT2, DECODE_LUT3};
 use core::mem::MaybeUninit;
 
-/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `input.len() * 3 / 4`
+// Refer to the reexport for documentation, crate::decode::decode_into_unchecked.
 #[inline]
 pub unsafe fn decode_into_unchecked(
     input: &[u8],

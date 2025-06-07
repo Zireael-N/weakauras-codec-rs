@@ -42,7 +42,7 @@ static LUT2: [u8; 64] = [
     15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 255, 255, 255, 255,
 ];
 
-/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `input.len() * 3 / 4`
+// Refer to the reexport for documentation, crate::decode::decode_into_unchecked.
 #[target_feature(enable = "neon")]
 pub unsafe fn decode_into_unchecked(
     input: &[u8],

@@ -8,7 +8,7 @@ use crate::encode::scalar;
 use core::arch::wasm32::*;
 use core::mem::MaybeUninit;
 
-/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `(input.len() * 4 + 2) / 3`
+// Refer to the reexport for documentation, crate::encode::encode_into_unchecked.
 #[target_feature(enable = "simd128")]
 pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut [MaybeUninit<u8>]) -> usize {
     // Refer to the SSSE3 version for a detailed explanation,

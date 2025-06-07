@@ -9,6 +9,7 @@ use weakauras_codec_lua_value::error::TryFromLuaValueError;
 
 /// Errors than can occur while deserializing.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DeserializationError {
     /// The input does not start with `^1`.
     InvalidPrefix,
@@ -20,7 +21,8 @@ pub enum DeserializationError {
     InvalidFloatNumber,
     /// A floating-point number stored as a mantissa-exponent pair is missing its exponent.
     MissingExponent,
-    /// According to the input, a map has a key of type `null`. That is not valid in Lua.
+    /// According to the input, a map has a key that is either a null or a NaN.
+    /// That is not valid in Lua.
     InvalidMapKeyType,
     /// A map has a key without a corresponding value.
     MapMissingValue,
@@ -52,7 +54,7 @@ impl fmt::Display for DeserializationError {
             Self::InvalidEscapeCharacter => write!(f, "Invalid escape character"),
             Self::InvalidFloatNumber => write!(f, "Failed to parse a floating-point number"),
             Self::MissingExponent => write!(f, "A floating-point number is missing an exponent"),
-            Self::InvalidMapKeyType => write!(f, "Usage of null as a map key"),
+            Self::InvalidMapKeyType => write!(f, "Invalid map key type"),
             Self::MapMissingValue => write!(f, "Map has a key without a corresponding value"),
             Self::UnclosedMap => write!(
                 f,

@@ -1,6 +1,17 @@
 // Copyright 2020-2025 Velithris
 // SPDX-License-Identifier: MIT
 
+//! This library provides types that behave similarly to Lua types.
+//!
+//! # Crate features
+//!
+//! * **fnv** - Use `fnv` instead of `BTreeMap` as the implementation of [`LuaValue::Map`]. **Disabled** by default.
+//! * **indexmap** - Use `indexmap` instead of `BTreeMap` as the implementation of [`LuaValue::Map`]. **Disabled** by default.
+//! * **serde** - Allow serializing and deserializing [`LuaValue`] using `serde`. **Disabled** by default.
+
+#![deny(missing_docs)]
+
+/// Error types.
 pub mod error;
 
 #[cfg(all(not(feature = "indexmap"), feature = "fnv"))]
@@ -21,6 +32,7 @@ use serde::{
 
 /// A tagged union representing all
 /// possible values in Lua.
+#[allow(missing_docs)] // Variants are self-explanatory.
 #[derive(Debug, Clone)]
 pub enum LuaValue {
     Map(Map<LuaMapKey, LuaValue>),
@@ -67,6 +79,7 @@ impl From<bool> for LuaValue {
 pub struct LuaMapKey(LuaValue);
 impl LuaMapKey {
     #[inline(always)]
+    /// Get a reference to the underlying value.
     pub fn as_value(&self) -> &LuaValue {
         &self.0
     }

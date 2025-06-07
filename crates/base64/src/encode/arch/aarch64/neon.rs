@@ -45,7 +45,7 @@ fn reshuffle(v: uint8x16x3_t) -> uint8x16x4_t {
     result
 }
 
-/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `(input.len() * 4 + 2) / 3`
+// Refer to the reexport for documentation, crate::encode::encode_into_unchecked.
 #[target_feature(enable = "neon")]
 pub unsafe fn encode_into_unchecked(input: &[u8], output: &mut [MaybeUninit<u8>]) -> usize {
     let mut len = input.len();

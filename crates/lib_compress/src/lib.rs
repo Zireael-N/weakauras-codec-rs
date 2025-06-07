@@ -4,9 +4,44 @@
 // Copyright 2020-2025 Velithris
 // SPDX-License-Identifier: GPL-2.0-only
 
+//! This library provides a routine for decompressing data
+//! compressed by a Lua library called LibCompress.
+//!
+//! # Example
+//!
+//! ```
+//! use weakauras_codec_lib_compress::{DecompressionError, decompress};
+//!
+//! fn main() -> Result<(), DecompressionError> {
+//!     let expected = b"aaaaaaaa bbbbbbbb cccccccc";
+//!
+//!     // Huffman code
+//!     assert_eq!(
+//!         &*decompress(
+//!             &[
+//!                 0x03, 0x03, 0x1a, 0x00, 0x00, 0x62, 0x0c, 0x52, 0x8f,
+//!                 0xe9, 0xb0, 0x5c, 0x55, 0x35, 0x00, 0xc0, 0xaa, 0xaa
+//!             ],
+//!             1024
+//!         )?,
+//!         expected
+//!     );
+//!
+//!     // Uncompressed
+//!     assert_eq!(
+//!         &*decompress(b"\x01aaaaaaaa bbbbbbbb cccccccc", 1024)?,
+//!         expected
+//!     );
+//!
+//!     Ok(())
+//! }
+//! ```
+
 #![forbid(unsafe_code)]
+#![deny(missing_docs)]
 
 mod bitfield;
+/// Error types.
 pub mod error;
 mod lookup_table;
 mod utils;
@@ -18,6 +53,37 @@ use lookup_table::{TableData, build_lookup_table};
 use std::borrow::Cow;
 use utils::{get_code, unescape_code};
 
+/// Decompress `input` compressed by LibCompress.
+///
+/// # Example
+///
+/// ```
+/// use weakauras_codec_lib_compress::{DecompressionError, decompress};
+///
+/// fn main() -> Result<(), DecompressionError> {
+///     let expected = b"aaaaaaaa bbbbbbbb cccccccc";
+///
+///     // Huffman code
+///     assert_eq!(
+///         &*decompress(
+///             &[
+///                 0x03, 0x03, 0x1a, 0x00, 0x00, 0x62, 0x0c, 0x52, 0x8f,
+///                 0xe9, 0xb0, 0x5c, 0x55, 0x35, 0x00, 0xc0, 0xaa, 0xaa
+///             ],
+///             1024
+///         )?,
+///         expected
+///     );
+///
+///     // Uncompressed
+///     assert_eq!(
+///         &*decompress(b"\x01aaaaaaaa bbbbbbbb cccccccc", 1024)?,
+///         expected
+///     );
+///
+///     Ok(())
+/// }
+/// ```
 pub fn decompress(input: &[u8], max_size: usize) -> Result<Cow<'_, [u8]>, DecompressionError> {
     let mut iter = input.iter();
     match iter.next() {

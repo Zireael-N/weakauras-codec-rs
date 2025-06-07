@@ -12,6 +12,23 @@ use crate::{
 use reader::SliceReader;
 use weakauras_codec_lua_value::{LuaMapKey, LuaValue, Map};
 
+/// A structure for deserializing data produced by LibSerialize.
+///
+/// # Example
+///
+/// ```
+/// use weakauras_codec_lib_serialize::{deserialization::Deserializer, error::DeserializationError};
+///
+/// fn main() -> Result<(), DeserializationError> {
+///     assert_eq!(
+///         Deserializer::from_slice(b"\x01\xd2Hello, world!")
+///             .deserialize_first()?
+///             .unwrap(),
+///         "Hello, world!".into()
+///     );
+///     Ok(())
+/// }
+/// ```
 pub struct Deserializer<'s> {
     remaining_depth: usize,
     reader: SliceReader<'s>,
@@ -21,6 +38,7 @@ pub struct Deserializer<'s> {
 }
 
 impl<'s> Deserializer<'s> {
+    /// Create a deserializer from a slice of bytes.
     pub fn from_slice(slice: &'s [u8]) -> Self {
         Self {
             remaining_depth: 128,

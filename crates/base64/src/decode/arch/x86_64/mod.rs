@@ -12,7 +12,7 @@ use core::mem::MaybeUninit;
 #[cfg(target_feature = "avx2")]
 pub use avx2::decode_into_unchecked;
 
-/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `input.len() * 3 / 4`
+// Refer to the reexport for documentation, crate::decode::decode_into_unchecked.
 #[cfg(all(target_feature = "sse4.1", not(target_feature = "avx2")))]
 #[inline(always)]
 pub unsafe fn decode_into_unchecked(
@@ -30,7 +30,7 @@ pub unsafe fn decode_into_unchecked(
     )
 }
 
-/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `input.len() * 3 / 4`
+// Refer to the reexport for documentation, crate::decode::decode_into_unchecked.
 #[cfg(not(any(target_feature = "sse4.1", target_feature = "avx2")))]
 #[inline(always)]
 pub unsafe fn decode_into_unchecked(

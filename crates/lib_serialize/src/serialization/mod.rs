@@ -23,6 +23,21 @@ fn required_bytes(v: u64) -> u8 {
     }
 }
 
+/// A structure for serializing [LuaValues](LuaValue).
+///
+/// # Example
+///
+/// ```
+/// use weakauras_codec_lib_serialize::{error::SerializationError, serialization::Serializer};
+///
+/// fn main() -> Result<(), SerializationError> {
+///     assert_eq!(
+///         Serializer::serialize_one(&"Hello, world!".into(), None)?,
+///         b"\x01\xd2Hello, world!"
+///     );
+///     Ok(())
+/// }
+/// ```
 pub struct Serializer {
     remaining_depth: usize,
     result: Vec<u8>,
