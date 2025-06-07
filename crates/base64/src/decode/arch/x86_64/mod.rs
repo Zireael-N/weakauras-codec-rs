@@ -4,20 +4,56 @@
 pub mod avx2;
 pub mod sse41;
 
+#[allow(unused_imports)]
+use crate::{decode::scalar, macros::unsafe_runtime_dispatch};
+#[allow(unused_imports)]
+use core::mem::MaybeUninit;
+
 #[cfg(target_feature = "avx2")]
 pub use avx2::decode_into_unchecked;
 
+/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `input.len() * 3 / 4`
 #[cfg(all(target_feature = "sse4.1", not(target_feature = "avx2")))]
-pub use sse41::decode_into_unchecked;
+#[inline(always)]
+pub unsafe fn decode_into_unchecked(
+    input: &[u8],
+    output: &mut [MaybeUninit<u8>],
+) -> Result<usize, usize> {
+    unsafe_runtime_dispatch!(
+        decode_into_unchecked,
+        Result<usize, usize>,
+        input,
+        output,
+        is_x86_feature_detected,
+        ("avx2", avx2),
+        sse41,
+    )
+}
 
+/// SAFETY: the caller must ensure that `output`'s length is AT LEAST `input.len() * 3 / 4`
 #[cfg(not(any(target_feature = "sse4.1", target_feature = "avx2")))]
-pub use crate::decode::scalar::decode_into_unchecked;
+#[inline(always)]
+pub unsafe fn decode_into_unchecked(
+    input: &[u8],
+    output: &mut [MaybeUninit<u8>],
+) -> Result<usize, usize> {
+    unsafe_runtime_dispatch!(
+        decode_into_unchecked,
+        Result<usize, usize>,
+        input,
+        output,
+        is_x86_feature_detected,
+        ("avx2", avx2),
+        ("sse4.1", sse41),
+        scalar,
+    )
+}
 
 #[cfg(test)]
 mod tests {
     #![allow(unused_imports)]
     use super::*;
-    use crate::decode::{scalar, tests::*};
+    use crate::decode::tests::*;
 
     use alloc::vec::Vec;
 
