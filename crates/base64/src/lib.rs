@@ -12,9 +12,11 @@ extern crate alloc;
 mod byte_map;
 pub mod decode;
 pub mod encode;
+pub mod error;
 pub(crate) mod macros;
 pub use decode::{decode_into, decode_into_unchecked};
 pub use encode::{encode_into, encode_into_unchecked};
+pub use error::*;
 
 #[cfg(feature = "alloc")]
 pub use decode::decode_to_vec;

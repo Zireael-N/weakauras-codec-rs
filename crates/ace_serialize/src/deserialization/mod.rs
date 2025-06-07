@@ -3,7 +3,7 @@
 
 mod reader;
 
-use crate::macros::check_recursion;
+use crate::{error::DeserializationError, macros::check_recursion};
 use reader::StrReader;
 use weakauras_codec_lua_value::{LuaMapKey, LuaValue};
 
@@ -22,12 +22,12 @@ impl<'s> Deserializer<'s> {
     }
 
     /// Deserialize all values.
-    pub fn deserialize_all(mut self) -> Result<Vec<LuaValue>, &'static str> {
+    pub fn deserialize_all(mut self) -> Result<Vec<LuaValue>, DeserializationError> {
         self.reader.read_identifier().and_then(|v| {
             if v == "^1" {
                 Ok(())
             } else {
-                Err("Supplied data is not AceSerializer data (rev 1)")
+                Err(DeserializationError::InvalidPrefix)
             }
         })?;
 
@@ -43,19 +43,19 @@ impl<'s> Deserializer<'s> {
     }
 
     /// Deserialize the first value.
-    pub fn deserialize_first(mut self) -> Result<Option<LuaValue>, &'static str> {
+    pub fn deserialize_first(mut self) -> Result<Option<LuaValue>, DeserializationError> {
         self.reader.read_identifier().and_then(|v| {
             if v == "^1" {
                 Ok(())
             } else {
-                Err("Supplied data is not AceSerializer data (rev 1)")
+                Err(DeserializationError::InvalidPrefix)
             }
         })?;
 
         self.deserialize_helper()
     }
 
-    fn deserialize_helper(&mut self) -> Result<Option<LuaValue>, &'static str> {
+    fn deserialize_helper(&mut self) -> Result<Option<LuaValue>, DeserializationError> {
         Ok(Some(match self.reader.read_identifier()? {
             "^^" => return Ok(None),
             "^Z" => LuaValue::Null,
@@ -71,13 +71,13 @@ impl<'s> Deserializer<'s> {
                 let mantissa = self
                     .reader
                     .read_until_next()
-                    .and_then(|v| v.parse::<f64>().map_err(|_| "Failed to parse a number"))?;
+                    .and_then(|v| v.parse::<f64>().map_err(Into::into))?;
                 let exponent = match self.reader.read_identifier()? {
                     "^f" => self
                         .reader
                         .read_until_next()
-                        .and_then(|v| v.parse::<f64>().map_err(|_| "Failed to parse a number"))?,
-                    _ => return Err("Missing exponent"),
+                        .and_then(|v| v.parse::<f64>().map_err(Into::into))?,
+                    _ => return Err(DeserializationError::MissingExponent),
                 };
 
                 LuaValue::Number(mantissa * (2f64.powf(exponent)))
@@ -92,14 +92,19 @@ impl<'s> Deserializer<'s> {
                             break;
                         }
                         _ => {
-                            check_recursion!(self, {
-                                let key = self
-                                    .deserialize_helper()?
-                                    .ok_or("Missing key")
-                                    .and_then(LuaMapKey::try_from)?;
+                            check_recursion!(self, DeserializationError, {
+                                let key = LuaMapKey::try_from(
+                                    self.deserialize_helper()?
+                                        .ok_or(DeserializationError::UnclosedMap)?,
+                                )?;
+
                                 let value = match self.reader.peek_identifier()? {
-                                    "^t" => return Err("Unexpected end of a table"),
-                                    _ => self.deserialize_helper()?.ok_or("Missing value")?,
+                                    "^t" => {
+                                        return Err(DeserializationError::MapMissingValue);
+                                    }
+                                    _ => self
+                                        .deserialize_helper()?
+                                        .ok_or(DeserializationError::UnclosedMap)?,
                                 };
                                 keys.push(key);
                                 values.push(value);
@@ -123,15 +128,15 @@ impl<'s> Deserializer<'s> {
                     LuaValue::Map(keys.into_iter().zip(values).collect())
                 }
             }
-            _ => return Err("Invalid identifier"),
+            _ => return Err(DeserializationError::InvalidIdentifier),
         }))
     }
 
-    fn deserialize_number(data: &str) -> Result<f64, &'static str> {
+    fn deserialize_number(data: &str) -> Result<f64, DeserializationError> {
         match data {
             "1.#INF" | "inf" => Ok(f64::INFINITY),
             "-1.#INF" | "-inf" => Ok(f64::NEG_INFINITY),
-            v => v.parse().map_err(|_| "Failed to parse a number"),
+            v => v.parse().map_err(Into::into),
         }
     }
 }

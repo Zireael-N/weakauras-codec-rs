@@ -6,7 +6,9 @@
 
 mod reader;
 
-use crate::{EmbeddedTypeTag, FORMAT_VERSION, TypeTag, macros::check_recursion};
+use crate::{
+    EmbeddedTypeTag, FORMAT_VERSION, TypeTag, error::DeserializationError, macros::check_recursion,
+};
 use reader::SliceReader;
 use weakauras_codec_lua_value::{LuaMapKey, LuaValue, Map};
 
@@ -30,10 +32,10 @@ impl<'s> Deserializer<'s> {
     }
 
     /// Deserialize all values.
-    pub fn deserialize_all(mut self) -> Result<Vec<LuaValue>, &'static str> {
+    pub fn deserialize_all(mut self) -> Result<Vec<LuaValue>, DeserializationError> {
         match self.reader.read_u8() {
             Some(val) if val == FORMAT_VERSION || val == FORMAT_VERSION + 1 => {}
-            _ => return Err("Invalid serialized data"),
+            _ => return Err(DeserializationError::InvalidPrefix),
         }
 
         let mut result = Vec::new();
@@ -46,16 +48,16 @@ impl<'s> Deserializer<'s> {
     }
 
     /// Deserialize the first value.
-    pub fn deserialize_first(mut self) -> Result<Option<LuaValue>, &'static str> {
+    pub fn deserialize_first(mut self) -> Result<Option<LuaValue>, DeserializationError> {
         match self.reader.read_u8() {
             Some(val) if val == FORMAT_VERSION || val == FORMAT_VERSION + 1 => {}
-            _ => return Err("Invalid serialized data"),
+            _ => return Err(DeserializationError::InvalidPrefix),
         }
 
         self.deserialize_helper()
     }
 
-    fn deserialize_helper(&mut self) -> Result<Option<LuaValue>, &'static str> {
+    fn deserialize_helper(&mut self) -> Result<Option<LuaValue>, DeserializationError> {
         match self.reader.read_u8() {
             None => Ok(None),
             Some(value) => {
@@ -66,14 +68,18 @@ impl<'s> Deserializer<'s> {
                     // * `CCCC TT10`: a 2 bit type index and 4 bit count (strlen, #tab, etc.)
                     //     * Followed by the type-dependent payload
                     let tag = EmbeddedTypeTag::from_u8((value & 0x0F) >> 2)
-                        .ok_or("Invalid embedded tag")?;
+                        .ok_or(DeserializationError::InvalidEmbeddedTag)?;
                     let len = value >> 4;
 
                     self.deserialize_embedded(tag, len).map(Option::Some)
                 } else if value & 7 == 4 {
                     // * `NNNN S100`: the lower four bits of a 12 bit int and 1 bit for its sign
                     //     * Followed by a byte for the upper bits
-                    let next_byte = self.reader.read_u8().ok_or("Unexpected EOF")? as u16;
+                    let next_byte = self
+                        .reader
+                        .read_u8()
+                        .ok_or(DeserializationError::UnexpectedEof)?
+                        as u16;
                     let packed = (next_byte << 8) + value as u16;
 
                     Ok(Some(LuaValue::Number(if value & 15 == 12 {
@@ -84,7 +90,8 @@ impl<'s> Deserializer<'s> {
                 } else {
                     // * `TTTT T000`: a 5 bit type index
                     //     * Followed by the type-dependent payload, including count(s) if needed
-                    let tag = TypeTag::from_u8(value >> 3).ok_or("Invalid tag")?;
+                    let tag =
+                        TypeTag::from_u8(value >> 3).ok_or(DeserializationError::InvalidTag)?;
 
                     self.deserialize_one(tag).map(Option::Some)
                 }
@@ -93,10 +100,10 @@ impl<'s> Deserializer<'s> {
     }
 
     #[inline(always)]
-    fn extract_value(&mut self) -> Result<LuaValue, &'static str> {
+    fn extract_value(&mut self) -> Result<LuaValue, DeserializationError> {
         match self.deserialize_helper() {
             Ok(Some(value)) => Ok(value),
-            Ok(None) => Err("Unexpected EOF"),
+            Ok(None) => Err(DeserializationError::UnexpectedEof),
             Err(e) => Err(e),
         }
     }
@@ -105,7 +112,7 @@ impl<'s> Deserializer<'s> {
         &mut self,
         tag: EmbeddedTypeTag,
         len: u8,
-    ) -> Result<LuaValue, &'static str> {
+    ) -> Result<LuaValue, DeserializationError> {
         match tag {
             EmbeddedTypeTag::Str => self.deserialize_string(len as usize),
             EmbeddedTypeTag::Map => self.deserialize_map(len as usize),
@@ -117,7 +124,7 @@ impl<'s> Deserializer<'s> {
         }
     }
 
-    fn deserialize_one(&mut self, tag: TypeTag) -> Result<LuaValue, &'static str> {
+    fn deserialize_one(&mut self, tag: TypeTag) -> Result<LuaValue, DeserializationError> {
         match tag {
             TypeTag::Null => Ok(LuaValue::Null),
 
@@ -148,7 +155,10 @@ impl<'s> Deserializer<'s> {
             TypeTag::False => Ok(LuaValue::Boolean(false)),
 
             TypeTag::Str8 => {
-                let len = self.reader.read_u8().ok_or("Unexpected EOF")?;
+                let len = self
+                    .reader
+                    .read_u8()
+                    .ok_or(DeserializationError::UnexpectedEof)?;
                 self.deserialize_string(len as usize)
             }
             TypeTag::Str16 => {
@@ -161,7 +171,10 @@ impl<'s> Deserializer<'s> {
             }
 
             TypeTag::Map8 => {
-                let len = self.reader.read_u8().ok_or("Unexpected EOF")?;
+                let len = self
+                    .reader
+                    .read_u8()
+                    .ok_or(DeserializationError::UnexpectedEof)?;
                 self.deserialize_map(len as usize)
             }
             TypeTag::Map16 => {
@@ -174,7 +187,10 @@ impl<'s> Deserializer<'s> {
             }
 
             TypeTag::Array8 => {
-                let len = self.reader.read_u8().ok_or("Unexpected EOF")?;
+                let len = self
+                    .reader
+                    .read_u8()
+                    .ok_or(DeserializationError::UnexpectedEof)?;
                 self.deserialize_array(len as usize)
             }
             TypeTag::Array16 => {
@@ -187,8 +203,14 @@ impl<'s> Deserializer<'s> {
             }
 
             TypeTag::Mixed8 => {
-                let array_len = self.reader.read_u8().ok_or("Unexpected EOF")?;
-                let map_len = self.reader.read_u8().ok_or("Unexpected EOF")?;
+                let array_len = self
+                    .reader
+                    .read_u8()
+                    .ok_or(DeserializationError::UnexpectedEof)?;
+                let map_len = self
+                    .reader
+                    .read_u8()
+                    .ok_or(DeserializationError::UnexpectedEof)?;
 
                 self.deserialize_mixed(array_len as usize, map_len as usize)
             }
@@ -206,54 +228,62 @@ impl<'s> Deserializer<'s> {
             }
 
             TypeTag::StrRef8 => {
-                let index = self.reader.read_u8().ok_or("Unexpected EOF")? - 1;
+                let index = self
+                    .reader
+                    .read_u8()
+                    .ok_or(DeserializationError::UnexpectedEof)?
+                    - 1;
                 match self.string_refs.get(index as usize) {
-                    None => Err("Invalid string reference"),
+                    None => Err(DeserializationError::InvalidStringReference),
                     Some(s) => Ok(LuaValue::String(s.clone())),
                 }
             }
             TypeTag::StrRef16 => {
                 let index = self.deserialize_int(2)? - 1;
                 match self.string_refs.get(index as usize) {
-                    None => Err("Invalid string reference"),
+                    None => Err(DeserializationError::InvalidStringReference),
                     Some(s) => Ok(LuaValue::String(s.clone())),
                 }
             }
             TypeTag::StrRef24 => {
                 let index = self.deserialize_int(3)? - 1;
                 match self.string_refs.get(index as usize) {
-                    None => Err("Invalid string reference"),
+                    None => Err(DeserializationError::InvalidStringReference),
                     Some(s) => Ok(LuaValue::String(s.clone())),
                 }
             }
 
             TypeTag::MapRef8 => {
-                let index = self.reader.read_u8().ok_or("Unexpected EOF")? - 1;
+                let index = self
+                    .reader
+                    .read_u8()
+                    .ok_or(DeserializationError::UnexpectedEof)?
+                    - 1;
                 match self.table_refs.get(index as usize) {
-                    None => Err("Invalid table reference"),
+                    None => Err(DeserializationError::InvalidMapReference),
                     Some(v) => Ok(v.clone()),
                 }
             }
             TypeTag::MapRef16 => {
                 let index = self.deserialize_int(2)? - 1;
                 match self.table_refs.get(index as usize) {
-                    None => Err("Invalid table reference"),
+                    None => Err(DeserializationError::InvalidMapReference),
                     Some(v) => Ok(v.clone()),
                 }
             }
             TypeTag::MapRef24 => {
                 let index = self.deserialize_int(3)? - 1;
                 match self.table_refs.get(index as usize) {
-                    None => Err("Invalid table reference"),
+                    None => Err(DeserializationError::InvalidMapReference),
                     Some(v) => Ok(v.clone()),
                 }
             }
         }
     }
 
-    fn deserialize_string(&mut self, len: usize) -> Result<LuaValue, &'static str> {
+    fn deserialize_string(&mut self, len: usize) -> Result<LuaValue, DeserializationError> {
         match self.reader.read_string(len) {
-            None => Err("Unexpected EOF"),
+            None => Err(DeserializationError::UnexpectedEof),
             Some(s) => {
                 let s = s.into_owned();
                 if len > 2 {
@@ -265,37 +295,40 @@ impl<'s> Deserializer<'s> {
         }
     }
 
-    fn deserialize_f64(&mut self) -> Result<f64, &'static str> {
+    fn deserialize_f64(&mut self) -> Result<f64, DeserializationError> {
         match self.reader.read_f64() {
-            None => Err("Unexpected EOF"),
+            None => Err(DeserializationError::UnexpectedEof),
             Some(v) => Ok(v),
         }
     }
 
-    fn deserialize_f64_from_str(&mut self) -> Result<f64, &'static str> {
-        let len = self.reader.read_u8().ok_or("Unexpected EOF")?;
+    fn deserialize_f64_from_str(&mut self) -> Result<f64, DeserializationError> {
+        let len = self
+            .reader
+            .read_u8()
+            .ok_or(DeserializationError::UnexpectedEof)?;
 
         match self.reader.read_bytes(len as usize) {
-            None => Err("Unexpected EOF"),
+            None => Err(DeserializationError::UnexpectedEof),
             Some(bytes) => core::str::from_utf8(bytes)
                 .ok()
                 .and_then(|s| s.parse::<f64>().ok())
-                .ok_or("Cannot parse a number"),
+                .ok_or(DeserializationError::InvalidFloatNumber),
         }
     }
 
-    fn deserialize_int(&mut self, bytes: usize) -> Result<u64, &'static str> {
+    fn deserialize_int(&mut self, bytes: usize) -> Result<u64, DeserializationError> {
         match self.reader.read_int(bytes) {
-            None => Err("Unexpected EOF"),
+            None => Err(DeserializationError::UnexpectedEof),
             Some(v) => Ok(v),
         }
     }
 
-    fn deserialize_map(&mut self, len: usize) -> Result<LuaValue, &'static str> {
+    fn deserialize_map(&mut self, len: usize) -> Result<LuaValue, DeserializationError> {
         let mut m = Map::new();
 
         for _ in 0..len {
-            check_recursion!(self, {
+            check_recursion!(self, DeserializationError, {
                 let (key, value) = (self.extract_value()?, self.extract_value()?);
 
                 m.insert(LuaMapKey::try_from(key)?, value);
@@ -307,11 +340,11 @@ impl<'s> Deserializer<'s> {
         Ok(m)
     }
 
-    fn deserialize_array(&mut self, len: usize) -> Result<LuaValue, &'static str> {
+    fn deserialize_array(&mut self, len: usize) -> Result<LuaValue, DeserializationError> {
         let mut v = Vec::new();
 
         for _ in 0..len {
-            check_recursion!(self, {
+            check_recursion!(self, DeserializationError, {
                 v.push(self.extract_value()?);
             });
         }
@@ -325,18 +358,18 @@ impl<'s> Deserializer<'s> {
         &mut self,
         array_len: usize,
         map_len: usize,
-    ) -> Result<LuaValue, &'static str> {
+    ) -> Result<LuaValue, DeserializationError> {
         let mut m = Map::new();
 
         for i in 1..=array_len {
-            check_recursion!(self, {
+            check_recursion!(self, DeserializationError, {
                 let el = self.extract_value()?;
                 m.insert(LuaMapKey::try_from(LuaValue::Number(i as f64)).unwrap(), el);
             });
         }
 
         for _ in 0..map_len {
-            check_recursion!(self, {
+            check_recursion!(self, DeserializationError, {
                 let (key, value) = (self.extract_value()?, self.extract_value()?);
 
                 m.insert(LuaMapKey::try_from(key)?, value);

@@ -1,6 +1,8 @@
 // Copyright 2020-2025 Velithris
 // SPDX-License-Identifier: MIT
 
+pub mod error;
+
 #[cfg(all(not(feature = "indexmap"), feature = "fnv"))]
 pub use fnv::FnvHashMap as Map;
 #[cfg(feature = "indexmap")]
@@ -8,6 +10,7 @@ pub use indexmap::IndexMap as Map;
 #[cfg(not(any(feature = "indexmap", feature = "fnv")))]
 pub use std::collections::BTreeMap as Map;
 
+use crate::error::TryFromLuaValueError;
 use core::convert::TryFrom;
 
 #[cfg(feature = "serde")]
@@ -76,12 +79,12 @@ impl From<LuaMapKey> for LuaValue {
 }
 
 impl TryFrom<LuaValue> for LuaMapKey {
-    type Error = &'static str;
+    type Error = TryFromLuaValueError;
 
     fn try_from(value: LuaValue) -> Result<Self, Self::Error> {
         match value {
-            LuaValue::Null => Err("Map key can't be null"),
-            LuaValue::Number(inner) if inner.is_nan() => Err("Map key can't be NaN"),
+            LuaValue::Null => Err(TryFromLuaValueError::KeyCannotBeNull),
+            LuaValue::Number(inner) if inner.is_nan() => Err(TryFromLuaValueError::KeyCannotBeNan),
             _ => Ok(Self(value)),
         }
     }

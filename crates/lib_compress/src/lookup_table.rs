@@ -1,7 +1,7 @@
 // Copyright 2020-2025 Velithris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use super::GENERIC_ERROR;
+use crate::error::DecompressionError;
 
 #[derive(Clone)]
 pub(crate) struct TableEntry {
@@ -27,7 +27,9 @@ where
         .all(|w| comparator(&w[0], &w[1]) != Ordering::Greater)
 }
 
-pub(crate) fn build_lookup_table(codes: &[(u32, u8, u8)]) -> Result<Vec<TableEntry>, &'static str> {
+pub(crate) fn build_lookup_table(
+    codes: &[(u32, u8, u8)],
+) -> Result<Vec<TableEntry>, DecompressionError> {
     debug_assert!(is_sorted(codes, |prev, curr| {
         prev.1.cmp(&curr.1).then_with(|| prev.0.cmp(&curr.0))
     }));
@@ -42,7 +44,7 @@ pub(crate) fn build_lookup_table(codes: &[(u32, u8, u8)]) -> Result<Vec<TableEnt
 
     for &(mut code, mut code_len, symbol) in codes.iter() {
         if code_len == 0 {
-            return Err(GENERIC_ERROR);
+            return Err(DecompressionError::InvalidData);
         }
 
         let mut cursor = &mut lut;
@@ -62,7 +64,7 @@ pub(crate) fn build_lookup_table(codes: &[(u32, u8, u8)]) -> Result<Vec<TableEnt
             if let TableData::Reference(ref mut v) = entry.data {
                 cursor = v;
             } else {
-                return Err(GENERIC_ERROR); // two values have the same prefix
+                return Err(DecompressionError::InvalidData); // two values have the same prefix
             }
             code >>= 8;
             code_len -= 8;

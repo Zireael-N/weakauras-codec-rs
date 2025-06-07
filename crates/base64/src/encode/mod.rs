@@ -8,13 +8,12 @@ pub mod arch;
 #[doc(hidden)]
 pub mod scalar;
 
+use crate::error::{EncodeError, EncodeIntoSliceError};
 pub use arch::encode_into_unchecked;
 use core::mem::MaybeUninit;
 
 #[cfg(feature = "alloc")]
 use alloc::{string::String, vec::Vec};
-
-const OVERFLOW_ERROR: &str = "Cannot calculate capacity without overflowing";
 
 #[inline]
 pub fn calculate_encoded_len(input: &[u8]) -> Option<usize> {
@@ -32,11 +31,11 @@ pub fn calculate_encoded_len(input: &[u8]) -> Option<usize> {
 }
 
 #[cfg(feature = "alloc")]
-pub fn encode_to_string_with_prefix(input: &[u8], prefix: &str) -> Result<String, &'static str> {
+pub fn encode_to_string_with_prefix(input: &[u8], prefix: &str) -> Result<String, EncodeError> {
     let mut buffer = Vec::with_capacity(
         calculate_encoded_len(input)
             .and_then(|len| len.checked_add(prefix.len()))
-            .ok_or(OVERFLOW_ERROR)?,
+            .ok_or(EncodeError::DataIsTooLarge)?,
     );
     buffer.extend_from_slice(prefix.as_bytes());
 
@@ -58,8 +57,9 @@ pub fn encode_to_string_with_prefix(input: &[u8], prefix: &str) -> Result<String
 }
 
 #[cfg(feature = "alloc")]
-pub fn encode_to_string(input: &[u8]) -> Result<String, &'static str> {
-    let mut buffer = Vec::with_capacity(calculate_encoded_len(input).ok_or(OVERFLOW_ERROR)?);
+pub fn encode_to_string(input: &[u8]) -> Result<String, EncodeError> {
+    let mut buffer =
+        Vec::with_capacity(calculate_encoded_len(input).ok_or(EncodeError::DataIsTooLarge)?);
 
     // SAFETY:
     // - buffer's capacity is enough for storing base64-encoded input;
@@ -75,10 +75,13 @@ pub fn encode_to_string(input: &[u8]) -> Result<String, &'static str> {
     Ok(result)
 }
 
-pub fn encode_into(input: &[u8], output: &mut [MaybeUninit<u8>]) -> Result<usize, &'static str> {
-    let required_capacity = calculate_encoded_len(input).ok_or(OVERFLOW_ERROR)?;
+pub fn encode_into(
+    input: &[u8],
+    output: &mut [MaybeUninit<u8>],
+) -> Result<usize, EncodeIntoSliceError> {
+    let required_capacity = calculate_encoded_len(input).ok_or(EncodeError::DataIsTooLarge)?;
     if output.len() < required_capacity {
-        return Err("Output slice is too small");
+        return Err(EncodeIntoSliceError::OutputSliceIsTooSmall);
     }
 
     // SAFETY: output's len is enough to store base64-encoded input.

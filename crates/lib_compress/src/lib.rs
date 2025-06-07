@@ -7,30 +7,35 @@
 #![forbid(unsafe_code)]
 
 mod bitfield;
+pub mod error;
 mod lookup_table;
 mod utils;
+
+pub use error::*;
 
 use self::bitfield::Bitfield;
 use lookup_table::{TableData, build_lookup_table};
 use std::borrow::Cow;
 use utils::{get_code, unescape_code};
 
-const GENERIC_ERROR: &str = "Decompression error";
-
-pub fn decompress(input: &[u8], max_size: usize) -> Result<Cow<'_, [u8]>, &'static str> {
+pub fn decompress(input: &[u8], max_size: usize) -> Result<Cow<'_, [u8]>, DecompressionError> {
     let mut iter = input.iter();
     match iter.next() {
         Some(1) => return Ok(Cow::from(&input[1..])),
         Some(3) => {}
-        _ => return Err("Unknown compression codec"),
+        _ => return Err(DecompressionError::InvalidPrefix),
     }
 
     let len = input.len();
     if len < 5 {
-        return Err("Insufficient data");
+        return Err(DecompressionError::InputIsTooSmall);
     }
 
-    let num_symbols = iter.next().unwrap().checked_add(1).ok_or(GENERIC_ERROR)?;
+    let num_symbols = iter
+        .next()
+        .unwrap()
+        .checked_add(1)
+        .ok_or(DecompressionError::InvalidData)?;
 
     let original_size = iter
         .by_ref()
@@ -40,11 +45,11 @@ pub fn decompress(input: &[u8], max_size: usize) -> Result<Cow<'_, [u8]>, &'stat
         .fold(0, |acc, (i, byte)| acc + (byte << (i * 8)));
 
     if original_size == 0 {
-        return Err("Insufficient data");
+        return Err(DecompressionError::InputIsTooSmall);
     }
 
     if original_size > max_size {
-        return Err("Compressed data is too large");
+        return Err(DecompressionError::DataExceedsMaxSize);
     }
 
     let mut codes = Vec::with_capacity(num_symbols as usize);
@@ -57,12 +62,13 @@ pub fn decompress(input: &[u8], max_size: usize) -> Result<Cow<'_, [u8]>, &'stat
 
     // Code extraction:
     for _ in 0..num_symbols {
-        let symbol = bitfield.insert_and_extract_byte(*iter.next().ok_or("Unexpected EOF")?);
+        let symbol = bitfield
+            .insert_and_extract_byte(*iter.next().ok_or(DecompressionError::UnexpectedEof)?);
 
         loop {
             bitfield
-                .insert(*iter.next().ok_or("Unexpected EOF")?)
-                .map_err(|_| GENERIC_ERROR)?;
+                .insert(*iter.next().ok_or(DecompressionError::UnexpectedEof)?)
+                .map_err(|_| DecompressionError::InvalidData)?;
 
             if let Some(v) = get_code(&mut bitfield)? {
                 let (code, code_len) = unescape_code(v.0, v.1);
@@ -94,7 +100,7 @@ pub fn decompress(input: &[u8], max_size: usize) -> Result<Cow<'_, [u8]>, &'stat
             let mut new_bitfield = bitfield;
             while new_bitfield.get_len() >= cursor.code_length {
                 if cursor.code_length == 0 {
-                    return Err(GENERIC_ERROR);
+                    return Err(DecompressionError::InvalidData);
                 }
 
                 match cursor.data {
@@ -119,13 +125,13 @@ pub fn decompress(input: &[u8], max_size: usize) -> Result<Cow<'_, [u8]>, &'stat
         }
 
         if bitfield.get_len() == original_len {
-            return Err(GENERIC_ERROR);
+            return Err(DecompressionError::InvalidData);
         }
     }
 
     if result.len() == original_size {
         Ok(Cow::from(result))
     } else {
-        Err(GENERIC_ERROR)
+        Err(DecompressionError::InvalidData)
     }
 }

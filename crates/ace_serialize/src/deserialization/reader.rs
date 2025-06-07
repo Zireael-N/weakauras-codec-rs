@@ -4,6 +4,8 @@
 // Copyright 2020-2025 Velithris
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::error::DeserializationError;
+
 pub(crate) struct StrReader<'s> {
     slice: &'s [u8],
     index: usize,
@@ -51,7 +53,7 @@ impl<'s> StrReader<'s> {
         self.index
     }
 
-    pub(crate) fn read_identifier(&mut self) -> Result<&str, &'static str> {
+    pub(crate) fn read_identifier(&mut self) -> Result<&str, DeserializationError> {
         if self.index + 1 < self.slice.len() {
             // Matching against the second byte to ensure
             // we don't break up a multibyte character.
@@ -63,14 +65,14 @@ impl<'s> StrReader<'s> {
                     self.index += 2;
                     Ok(result)
                 }
-                _ => Err("Not an identifier"),
+                _ => Err(DeserializationError::InvalidIdentifier),
             }
         } else {
-            Err("Unexpected EOF")
+            Err(DeserializationError::UnexpectedEof)
         }
     }
 
-    pub(crate) fn peek_identifier(&self) -> Result<&str, &'static str> {
+    pub(crate) fn peek_identifier(&self) -> Result<&str, DeserializationError> {
         if self.index + 1 < self.slice.len() {
             // Matching against the second byte to ensure
             // we don't break up a multibyte character.
@@ -78,19 +80,19 @@ impl<'s> StrReader<'s> {
                 (b'^', 0x00..=0x79) => Ok(unsafe {
                     core::str::from_utf8_unchecked(&self.slice[self.index..self.index + 2])
                 }),
-                _ => Err("Not an identifier"),
+                _ => Err(DeserializationError::InvalidIdentifier),
             }
         } else {
-            Err("Unexpected EOF")
+            Err(DeserializationError::UnexpectedEof)
         }
     }
 
-    pub(crate) fn read_until_next(&mut self) -> Result<&str, &'static str> {
+    pub(crate) fn read_until_next(&mut self) -> Result<&str, DeserializationError> {
         let start = self.index;
 
         loop {
             match self.peek() {
-                None => return Err("Unexpected EOF"),
+                None => return Err(DeserializationError::UnexpectedEof),
                 Some(b'^') => {
                     // SAFETY: As long as `start` does not point at the middle
                     // of a multibyte character, this should be safe.
@@ -104,14 +106,14 @@ impl<'s> StrReader<'s> {
         }
     }
 
-    pub(crate) fn parse_str(&mut self) -> Result<&str, &'static str> {
+    pub(crate) fn parse_str(&mut self) -> Result<&str, DeserializationError> {
         self.scratch.clear();
 
         let mut copy_from = self.index;
 
         loop {
             match self.peek() {
-                None => return Err("Unexpected EOF"),
+                None => return Err(DeserializationError::UnexpectedEof),
                 Some(b'^') => {
                     if self.scratch.is_empty() {
                         // SAFETY: As long as `copy_from` does not point at the middle
@@ -140,7 +142,7 @@ impl<'s> StrReader<'s> {
                         Some(0x7B) => 0x7F,
                         Some(0x7C) => 0x7E,
                         Some(0x7D) => 0x5E,
-                        _ => return Err("Invalid escape character"),
+                        _ => return Err(DeserializationError::InvalidEscapeCharacter),
                     };
 
                     self.discard();

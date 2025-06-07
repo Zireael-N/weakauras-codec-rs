@@ -4,7 +4,9 @@
 // Copyright 2020-2025 Velithris
 // SPDX-License-Identifier: MIT
 
-use crate::{EmbeddedTypeTag, FORMAT_VERSION, TypeTag, macros::check_recursion};
+use crate::{
+    EmbeddedTypeTag, FORMAT_VERSION, TypeTag, error::SerializationError, macros::check_recursion,
+};
 use weakauras_codec_lua_value::{LuaMapKey, LuaValue, Map};
 
 const TYPE_TAG_SHIFT: u8 = 3;
@@ -33,7 +35,7 @@ impl Serializer {
     pub fn serialize_one(
         value: &LuaValue,
         approximate_len: Option<usize>,
-    ) -> Result<Vec<u8>, &'static str> {
+    ) -> Result<Vec<u8>, SerializationError> {
         let mut serializer = Self {
             remaining_depth: 128,
             result: Vec::with_capacity(approximate_len.unwrap_or(1024)),
@@ -47,7 +49,7 @@ impl Serializer {
         Ok(serializer.result)
     }
 
-    fn serialize_helper(&mut self, value: &LuaValue) -> Result<(), &'static str> {
+    fn serialize_helper(&mut self, value: &LuaValue) -> Result<(), SerializationError> {
         match *value {
             LuaValue::Null => self.result.push(TypeTag::Null.to_u8() << TYPE_TAG_SHIFT),
             LuaValue::Boolean(b) => {
@@ -131,7 +133,7 @@ impl Serializer {
         self.result.extend_from_slice(&bytes[bytes.len() - len..]);
     }
 
-    fn serialize_string(&mut self, value: &str) -> Result<(), &'static str> {
+    fn serialize_string(&mut self, value: &str) -> Result<(), SerializationError> {
         match self.string_refs.get(value) {
             Some(index) => {
                 let index = *index as u64;
@@ -151,7 +153,7 @@ impl Serializer {
                             .push(TypeTag::StrRef24.to_u8() << TYPE_TAG_SHIFT);
                         self.serialize_int(index, 3);
                     }
-                    _ => return Err("Can't serialize: more than 2^24 different strings"),
+                    _ => return Err(SerializationError::TooManyUniqueStrings),
                 }
             }
             None => {
@@ -179,7 +181,7 @@ impl Serializer {
                             self.result.push(TypeTag::Str24.to_u8() << TYPE_TAG_SHIFT);
                             self.serialize_int(len, 3);
                         }
-                        _ => return Err("Can't serialize: string is too large"),
+                        _ => return Err(SerializationError::StringIsTooLarge),
                     }
                 }
 
@@ -195,7 +197,7 @@ impl Serializer {
         Ok(())
     }
 
-    fn serialize_map(&mut self, map: &Map<LuaMapKey, LuaValue>) -> Result<(), &'static str> {
+    fn serialize_map(&mut self, map: &Map<LuaMapKey, LuaValue>) -> Result<(), SerializationError> {
         let len = map.len();
         if len < 16 {
             self.result.push(
@@ -218,12 +220,12 @@ impl Serializer {
                     self.result.push(TypeTag::Map24.to_u8() << TYPE_TAG_SHIFT);
                     self.serialize_int(len, 3);
                 }
-                _ => return Err("Can't serialize: map is too large"),
+                _ => return Err(SerializationError::MapIsTooLarge),
             }
         }
 
         for (key, value) in map {
-            check_recursion!(self, {
+            check_recursion!(self, SerializationError, {
                 self.serialize_helper(key.as_value())?;
                 self.serialize_helper(value)?;
             });
@@ -232,7 +234,7 @@ impl Serializer {
         Ok(())
     }
 
-    fn serialize_slice(&mut self, slice: &[LuaValue]) -> Result<(), &'static str> {
+    fn serialize_slice(&mut self, slice: &[LuaValue]) -> Result<(), SerializationError> {
         let len = slice.len();
         if len < 16 {
             self.result.push(
@@ -255,12 +257,12 @@ impl Serializer {
                     self.result.push(TypeTag::Array24.to_u8() << TYPE_TAG_SHIFT);
                     self.serialize_int(len, 3);
                 }
-                _ => return Err("Can't serialize: array is too large"),
+                _ => return Err(SerializationError::ArrayIsTooLarge),
             }
         }
 
         for el in slice {
-            check_recursion!(self, {
+            check_recursion!(self, SerializationError, {
                 self.serialize_helper(el)?;
             });
         }

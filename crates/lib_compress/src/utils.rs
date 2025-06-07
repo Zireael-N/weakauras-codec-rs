@@ -4,9 +4,9 @@
 // Copyright 2020-2025 Velithris
 // SPDX-License-Identifier: GPL-2.0-only
 
-use super::bitfield::Bitfield;
+use crate::{bitfield::Bitfield, error::DecompressionError};
 
-pub(crate) fn get_code(bitfield: &mut Bitfield) -> Result<Option<(u32, u8)>, &'static str> {
+pub(crate) fn get_code(bitfield: &mut Bitfield) -> Result<Option<(u32, u8)>, DecompressionError> {
     if bitfield.get_len() >= 2 {
         for i in 0..=bitfield.get_len() - 2 {
             let b1 = bitfield.get_data() & (1 << i);
@@ -17,7 +17,7 @@ pub(crate) fn get_code(bitfield: &mut Bitfield) -> Result<Option<(u32, u8)>, &'s
                     bitfield.discard_bits(2);
                     Ok(Some((code, i)))
                 } else {
-                    Err("Unsupported code length")
+                    Err(DecompressionError::InvalidData)
                 };
             }
         }

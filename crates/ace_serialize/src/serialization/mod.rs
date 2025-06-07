@@ -1,7 +1,7 @@
 // Copyright 2020-2025 Velithris
 // SPDX-License-Identifier: MIT
 
-use crate::macros::check_recursion;
+use crate::{error::SerializationError, macros::check_recursion};
 use weakauras_codec_lua_value::LuaValue;
 
 fn f64_to_parts(v: f64) -> (u64, i16, i8) {
@@ -36,7 +36,7 @@ impl Serializer {
     pub fn serialize_one(
         value: &LuaValue,
         approximate_len: Option<usize>,
-    ) -> Result<String, &'static str> {
+    ) -> Result<String, SerializationError> {
         let mut serializer = Self {
             remaining_depth: 128,
             result: String::with_capacity(approximate_len.unwrap_or(1024)),
@@ -49,7 +49,7 @@ impl Serializer {
         Ok(serializer.result)
     }
 
-    fn serialize_helper(&mut self, value: &LuaValue) -> Result<(), &'static str> {
+    fn serialize_helper(&mut self, value: &LuaValue) -> Result<(), SerializationError> {
         match *value {
             LuaValue::Null => self.result.push_str("^Z"),
             LuaValue::Boolean(b) => self.result.push_str(if b { "^B" } else { "^b" }),
@@ -73,7 +73,7 @@ impl Serializer {
 
                 self.result.push_str("^T");
                 for (key, value) in m.iter() {
-                    check_recursion!(self, {
+                    check_recursion!(self, SerializationError, {
                         self.serialize_helper(key.as_value())?;
                         self.serialize_helper(value)?;
                     });
@@ -85,9 +85,9 @@ impl Serializer {
         Ok(())
     }
 
-    fn serialize_number(&mut self, value: f64) -> Result<(), &'static str> {
+    fn serialize_number(&mut self, value: f64) -> Result<(), SerializationError> {
         if value.is_nan() {
-            return Err("AceSerializer does not support NaNs");
+            return Err(SerializationError::NanEncountered);
         } else if !value.is_finite() {
             self.result.push_str("^N");
             self.result
