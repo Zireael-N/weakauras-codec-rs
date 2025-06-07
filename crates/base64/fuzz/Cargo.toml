@@ -27,12 +27,20 @@ name = "decode_scalar_and_avx2"
 path = "fuzz_targets/decode_scalar_and_avx2.rs"
 
 [[bin]]
+name = "decode_scalar_and_neon"
+path = "fuzz_targets/decode_scalar_and_neon.rs"
+
+[[bin]]
 name = "decode_scalar_and_sse41"
 path = "fuzz_targets/decode_scalar_and_sse41.rs"
 
 [[bin]]
 name = "encode_scalar_and_avx2"
 path = "fuzz_targets/encode_scalar_and_avx2.rs"
+
+[[bin]]
+name = "encode_scalar_and_neon"
+path = "fuzz_targets/encode_scalar_and_neon.rs"
 
 [[bin]]
 name = "encode_scalar_and_ssse3"

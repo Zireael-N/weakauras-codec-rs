@@ -1,4 +1,6 @@
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+use weakauras_codec_base64::decode::arch::aarch64;
 #[cfg(all(
     any(target_arch = "x86", target_arch = "x86_64"),
     any(target_feature = "avx2", target_feature = "sse4.1")
@@ -63,6 +65,19 @@ pub fn decoding_benchmark(c: &mut Criterion) {
                     || Vec::with_capacity(capacity),
                     |buffer| unsafe {
                         x86_64::avx2::decode_into_unchecked(&data, buffer.spare_capacity_mut())
+                    },
+                    BatchSize::SmallInput,
+                );
+            });
+        }
+
+        #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+        {
+            group.bench_with_input(BenchmarkId::new("Neon", size), size, |b, _| {
+                b.iter_batched_ref(
+                    || Vec::with_capacity(capacity),
+                    |buffer| unsafe {
+                        aarch64::neon::decode_into_unchecked(&data, buffer.spare_capacity_mut())
                     },
                     BatchSize::SmallInput,
                 );

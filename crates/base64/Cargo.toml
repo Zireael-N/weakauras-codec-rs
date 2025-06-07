@@ -1,7 +1,7 @@
 [package]
 name = "weakauras-codec-base64"
 version = "0.0.1"
-authors = ["Velithris", "Wojciech Muła", "Alfred Klomp", "Daniel Lemire", "Nick Galbreath"]
+authors = ["Velithris", "Wojciech Muła", "Alfred Klomp", "Daniel Lemire", "Nick Galbreath", "Matthieu Darbois"]
 license = "MIT AND BSD-2-Clause"
 exclude = ["/benches/", "/fuzz/"]
 edition = "2024"
