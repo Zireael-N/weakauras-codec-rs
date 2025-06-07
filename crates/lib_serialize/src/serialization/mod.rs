@@ -87,13 +87,19 @@ impl Serializer {
     fn serialize_number(&mut self, value: f64) {
         const MAX_7_BIT: f64 = (2i64.pow(56) - 1) as f64;
 
-        if value.fract() != 0.0 || (value < -MAX_7_BIT || value > MAX_7_BIT) {
+        if value.is_nan() {
+            // Serialize any NaN as a positive qNaN:
+            self.result.push(TypeTag::Float.to_u8() << TYPE_TAG_SHIFT);
+            self.result
+                .extend_from_slice(&[0x7f, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        } else if value.fract() != 0.0 || (value < -MAX_7_BIT || value > MAX_7_BIT) {
             self.result.push(TypeTag::Float.to_u8() << TYPE_TAG_SHIFT);
             self.result.extend_from_slice(&value.to_be_bytes());
         } else {
             // SAFETY:
-            // 1) `f64::fract()` returns NaN for infinite values and NaNs, NaN != 0.0;
-            // 2) `value` is within i64::MIN..=i64::MAX range.
+            // 1) NaNs are handled explicitly;
+            // 2) `f64::fract()` returns NaN for infinite values, NaN != 0.0;
+            // 3) `value` is within i64::MIN..=i64::MAX range.
             let value = unsafe { value.to_int_unchecked::<i64>() };
 
             if value > -4096 && value < 4096 {
