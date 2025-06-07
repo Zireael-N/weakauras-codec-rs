@@ -40,6 +40,7 @@
 //!
 //! # Crate features
 //!
+//! * **lua-value-arbitrary** - Implement `arbitrary::Arbitrary` for [`LuaValue`]. **Disabled** by default.
 //! * **lua-value-fnv** - Use `fnv` instead of `BTreeMap` as the implementation of [`LuaValue::Map`]. **Disabled** by default.
 //! * **lua-value-indexmap** - Use `indexmap` instead of `BTreeMap` as the implementation of [`LuaValue::Map`]. **Disabled** by default.
 //! * **serde** - Allow serializing and deserializing [`LuaValue`] using `serde`. **Disabled** by default.

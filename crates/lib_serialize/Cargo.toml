@@ -9,6 +9,7 @@ rust-version = "1.87"
 
 [features]
 default = []
+lua-value-arbitrary = ["weakauras-codec-lua-value/arbitrary"]
 lua-value-fnv = ["weakauras-codec-lua-value/fnv"]
 lua-value-indexmap = ["weakauras-codec-lua-value/indexmap"]
 serde = ["weakauras-codec-lua-value/serde"]

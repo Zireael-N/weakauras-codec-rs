@@ -5,6 +5,7 @@
 //!
 //! # Crate features
 //!
+//! * **arbitrary** - Implement `arbitrary::Arbitrary` for [`LuaValue`]. **Disabled** by default.
 //! * **fnv** - Use `fnv` instead of `BTreeMap` as the implementation of [`LuaValue::Map`]. **Disabled** by default.
 //! * **indexmap** - Use `indexmap` instead of `BTreeMap` as the implementation of [`LuaValue::Map`]. **Disabled** by default.
 //! * **serde** - Allow serializing and deserializing [`LuaValue`] using `serde`. **Disabled** by default.
@@ -24,6 +25,8 @@ pub use std::collections::BTreeMap as Map;
 use crate::error::TryFromLuaValueError;
 use core::convert::TryFrom;
 
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 #[cfg(feature = "serde")]
 use serde::{
     de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor},
@@ -34,6 +37,7 @@ use serde::{
 /// possible values in Lua.
 #[allow(missing_docs)] // Variants are self-explanatory.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 pub enum LuaValue {
     Map(Map<LuaMapKey, LuaValue>),
     Array(Vec<LuaValue>),
@@ -237,6 +241,33 @@ impl Debug for LuaMapKey {
     #[inline(always)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Debug::fmt(&self.0, f)
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for LuaMapKey {
+    #[inline(always)]
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let key = LuaValue::arbitrary(u)?;
+        LuaMapKey::try_from(key).map_err(|_| arbitrary::Error::IncorrectFormat)
+    }
+
+    #[inline(always)]
+    fn arbitrary_take_rest(u: arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let key = LuaValue::arbitrary_take_rest(u)?;
+        LuaMapKey::try_from(key).map_err(|_| arbitrary::Error::IncorrectFormat)
+    }
+
+    #[inline(always)]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        LuaValue::size_hint(depth)
+    }
+
+    #[inline(always)]
+    fn try_size_hint(
+        depth: usize,
+    ) -> arbitrary::Result<(usize, Option<usize>), arbitrary::MaxRecursionReached> {
+        LuaValue::try_size_hint(depth)
     }
 }
 
