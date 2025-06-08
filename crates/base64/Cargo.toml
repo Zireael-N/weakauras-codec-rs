@@ -1,8 +1,16 @@
 [package]
 name = "weakauras-codec-base64"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["Velithris", "Wojciech Muła", "Alfred Klomp", "Daniel Lemire", "Nick Galbreath", "Matthieu Darbois"]
 license = "MIT AND BSD-2-Clause"
+description = """
+Provides heavily optimized routines for decoding and encoding
+base64 used for WeakAuras-compatible strings.
+"""
+categories = ["encoding"]
+keywords.workspace = true
+repository.workspace = true
+documentation = "https://docs.rs/weakauras-codec-base64"
 exclude = ["/benches/", "/fuzz/"]
 edition = "2024"
 rust-version = "1.87"

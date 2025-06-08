@@ -1,8 +1,12 @@
 [package]
 name = "weakauras-codec-lua-value"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["Velithris"]
 license = "MIT"
+description = "Provides types that behave similarly to Lua types."
+keywords.workspace = true
+repository.workspace = true
+documentation = "https://docs.rs/weakauras-codec-lua-value"
 edition = "2024"
 rust-version = "1.87"
 

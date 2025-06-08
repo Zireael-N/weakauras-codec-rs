@@ -3,11 +3,20 @@ members = [
     "crates/*"
 ]
 
+[workspace.package]
+keywords = ["world-of-warcraft", "weakauras"]
+repository = "https://github.com/Zireael-N/weakauras-codec-rs"
+
 [package]
 name = "weakauras-codec"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["Velithris"]
 license = "MIT"
+description = "Provides routines for decoding and encoding WeakAuras-compatible strings."
+categories = ["encoding"]
+keywords.workspace = true
+repository.workspace = true
+documentation = "https://docs.rs/weakauras-codec"
 exclude = ["/.github/", "/crates/"]
 edition = "2024"
 rust-version = "1.87"
@@ -28,9 +37,9 @@ lua-value-indexmap = ["weakauras-codec-lua-value/indexmap"]
 serde = ["weakauras-codec-lua-value/serde"]
 
 [dependencies]
-weakauras-codec-base64 = { version = "0.0.1", path = "crates/base64" }
-weakauras-codec-lib-compress = { version = "0.0.1", path = "crates/lib_compress", optional = true }
-weakauras-codec-ace-serialize = { version = "0.0.1", path = "crates/ace_serialize" }
-weakauras-codec-lib-serialize = { version = "0.0.1", path = "crates/lib_serialize" }
-weakauras-codec-lua-value = { version = "0.0.1", path = "crates/lua_value" }
+weakauras-codec-base64 = { version = "0.1.0", path = "crates/base64" }
+weakauras-codec-lib-compress = { version = "0.1.0", path = "crates/lib_compress", optional = true }
+weakauras-codec-ace-serialize = { version = "0.1.0", path = "crates/ace_serialize" }
+weakauras-codec-lib-serialize = { version = "0.1.0", path = "crates/lib_serialize" }
+weakauras-codec-lua-value = { version = "0.1.0", path = "crates/lua_value" }
 flate2 = { version = "1.1.1", default-features = false }

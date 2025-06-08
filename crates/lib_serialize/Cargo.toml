@@ -1,8 +1,16 @@
 [package]
 name = "weakauras-codec-lib-serialize"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["Velithris", "Ross Nichols"]
 license = "MIT"
+description = """
+Provides routines for deserializing and serializing LuaValues
+in a way compatible with a Lua library called LibSerialize.
+"""
+categories = ["encoding"]
+keywords.workspace = true
+repository.workspace = true
+documentation = "https://docs.rs/weakauras-codec-lib-serialize"
 exclude = ["/fuzz/"]
 edition = "2024"
 rust-version = "1.87"
@@ -15,4 +23,4 @@ lua-value-indexmap = ["weakauras-codec-lua-value/indexmap"]
 serde = ["weakauras-codec-lua-value/serde"]
 
 [dependencies]
-weakauras-codec-lua-value = { version = "0.0.1", path = "../lua_value" }
+weakauras-codec-lua-value = { version = "0.1.0", path = "../lua_value" }
