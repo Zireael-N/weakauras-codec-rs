@@ -1,0 +1,35 @@
+name: code_style
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  check-code-style:
+    name: Check code style
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout the repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      with:
+        persist-credentials: false
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b # v1
+      with:
+        toolchain: 1.87.0 # MSRV or later
+        targets: "x86_64-unknown-linux-gnu"
+        components: "clippy, rustfmt" 
+
+    - name: Check formatting
+      run: |
+        cargo fmt --all -- --check
+
+    - name: Run clippy
+      run: |
+        cargo clippy --all -- -D warnings
